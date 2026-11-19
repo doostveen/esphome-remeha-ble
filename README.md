@@ -9,6 +9,11 @@ aantal parameters (stooklijn, drukwaarschuwing) is ook in te stellen.
 Werkt met verschillende Bluetooth-routes van Remeha: de **ingebouwde GTW-22-module**
 (bv. Confida 40) én de **GTW-IoT home-hub** (bv. Confida 10).
 
+Mogelijk werkt het ook met **andere Remeha-toestellen met Bluetooth** die hetzelfde
+protocol spreken, zoals andere warmtepompen met een EHC-regelaar. Dat is niet getest.
+Het codeboek in [`data/`](data/README.md) bevat de objecten van alle toestellen die dit
+protocol gebruiken.
+
 Gebruik op eigen risico.
 
 ## Welk toestel, welke YAML?
@@ -50,9 +55,10 @@ te raken. De lijst hierboven is maar een selectie; het toestel kent duizenden
 objecten.
 
 **Stap 1 — zoek het object op.** Gebruik het codeboek
-`data/Confida_parametercodeboek.xlsx`, tab **"Confida"** = de objecten die dít
-toestel gebruikt (met Nederlandse namen). Zoek op de code (bv. `HM001`)
-of op een trefwoord in de naam. De kolommen vertalen direct naar YAML-velden:
+`data/Remeha_parametercodeboek.xlsx`, tabblad **"Parameters"**: alle objecten van het
+protocol, met Nederlandse namen. Zoek op de code (bv. `HM001`) of op een trefwoord in
+de naam. Niet elk object bestaat op elk toestel; kijk na het toevoegen in de log of
+jouw toestel een geldige waarde teruggeeft. De kolommen vertalen direct naar YAML-velden:
 
 | kolom in het codeboek | YAML-veld |
 |---|---|
@@ -226,6 +232,6 @@ remeha-confida.yaml         ESPHome-config voor de GTW-22-route (met passkey)
 remeha-confida-gtwiot.yaml  ESPHome-config voor de GTW-IoT-route (zonder passkey)
 components/remeha_confida/  de external component (C++/Python-driver), voor beide
 docs/readme.md              technische protocolreferentie
-data/                       codeboek om objecten op te zoeken
+data/                       codeboek: alle objecten, enums en foutcodes
 secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
 ```

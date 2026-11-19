@@ -1,6 +1,6 @@
-# Data — codeboek & object-woordenboek
+# Data — codeboek
 
-Naslag bij de ESPHome-component: wat elk CAN-object betekent, hoe je het decodeert,
+Naslag bij de ESPHome-component: welke CAN-objecten er zijn, hoe je ze decodeert,
 welke keuzes een enum-parameter heeft en welke foutcodes bestaan. Hiermee zoek je
 objecten op als je zelf een sensor of parameter aan de YAML wilt toevoegen (zie de
 README in de hoofdmap).
@@ -9,26 +9,27 @@ README in de hoofdmap).
 
 | bestand | inhoud |
 |---|---|
-| **`Confida_parametercodeboek.xlsx`** | Het codeboek (3 tabbladen, met Nederlandse namen/uitleg). Zie hieronder. |
+| **`Remeha_parametercodeboek.xlsx`** | Het codeboek: 3 tabbladen met Nederlandse namen. Zie hieronder. |
 
 ### Tabbladen in het codeboek
 
 | tabblad | rijen | inhoud |
 |---|---|---|
-| **Confida** | 460 | De objecten die déze warmtepomp (EHC, node 1) daadwerkelijk gebruikt: 250 parameters, 155 signals, 55 counters. Afgeleid uit de GetList-set die het toestel zelf teruggeeft voor dit type (node 1), niet uit een index-heuristiek — dus dit dekt wat de ESP van dit toestel kan lezen. Kolom **In ESPHome** markeert wat de meegeleverde YAML al uitleest. |
-| **Enums** | 1160 | Keuzelijsten (waarde → omschrijving NL/EN) voor enum-parameters. |
-| **Foutcodes** | 1986 | De foutcode-catalogus in 24 categorieën, weergave `H{categorie}.{nummer}`. |
+| **Parameters** | 3092 | Alle objecten van het protocol, van álle toestellen die het gebruiken (dus ook bijvoorbeeld cv-ketels), niet alleen de Confida. Per object: index, subindex, code, Nederlandse naam, soort, datatype, gain, eenheid, enum, technisch bereik, hoe je het uitleest, wetenswaardigheden en functiegroep. |
+| **Enums** | 1160 | Keuzelijsten voor enum-parameters: waarde → Nederlandse omschrijving. |
+| **Foutcodes** | 1986 | De foutcodes in 24 categorieën, weergave `H{categorie}.{nummer}`, met korte Nederlandse omschrijving. |
 
-> **Het "Confida"-tabblad is niet per se compleet.** Het bevat de objecten uit de
-> standaard GetList-set. Het toestel serveert echter óók objecten daarbuiten — die kun
-> je alsnog los uitlezen (met een losse read). Voorbeeld:
-> `CM260` (`0x5434`), een ruimtetemperatuur met hoge resolutie (0,01 i.p.v. 0,1 °C bij
-> `CM030`), staat niet in de GetList-set maar wordt wél gevuld. Zulke extra objecten
-> staan niet in dit codeboek; die vind je door zelf de BLE-log/scan van je toestel te
-> bekijken — en controleer per object in de log of jouw toestel er een geldige waarde
-> voor teruggeeft.
+## Andere Remeha-toestellen
 
-### Kolom "Soort"
+Omdat het codeboek alle objecten van het protocol bevat, is het mogelijk ook bruikbaar
+voor **andere Remeha-toestellen met Bluetooth** die hetzelfde protocol spreken. Dat is
+niet getest.
+
+**Niet elk object bestaat op elk toestel.** Een Confida 40 gebruikt er een paar
+honderd. Of jouw toestel een object kent, zie je in de ESPHome-log: krijg je een echte
+waarde terug, of een foutmelding / `0` / `-327,68`?
+
+## Kolom "Soort"
 
 `Soort` bepaalt of een object een instelling of een meetwaarde is, en daarmee of het
 onder `sensor:` of `number:` in de YAML hoort: `Parameter` = instelbaar (`number`, of
@@ -37,5 +38,15 @@ teller (`sensor` met `state_class: total_increasing`). Er is bewust géén "schr
 kolom: de alleen-lezen-vlag in het object-woordenboek markeert ook meetwaarden als
 schrijfbaar en is dus onbetrouwbaar.
 
-> De numerieke min/max/stap van parameters zitten niet in het object-woordenboek en
-> komen ook niet over BLE; alleen de toegestane waarden van enum-parameters liggen vast.
+## Kolom "Uitlezen"
+
+"bulk GetList" = het object zit in de standaard lijst die de component elke ronde
+ophaalt; in de YAML hoef je niets te doen (`read: bulk` is standaard). "individuele
+read" = het object zit vaak niet in die lijst (meestal instellingen); zet dan
+`read: single` in de YAML, zodat de component het los uitleest.
+
+> De numerieke min/max/stap van parameters staan niet in het codeboek. **Bereik
+> (technisch)** is alleen de theoretische range van het datatype × gain. Het toestel
+> stuurt de echte grenzen wel zelf (object `0x502B`), maar de component leest die nog
+> niet uit. De `min_value`/`max_value` in de YAML zijn daarom grenzen voor de
+> Home Assistant-interface; het toestel weigert een ongeldige waarde zelf.
