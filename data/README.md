@@ -15,7 +15,7 @@ README in de hoofdmap).
 
 | tabblad | rijen | inhoud |
 |---|---|---|
-| **Parameters** | 3092 | Alle objecten van het protocol, van álle toestellen die het gebruiken (dus ook bijvoorbeeld cv-ketels), niet alleen de Confida. Per object: index, subindex, code, Nederlandse naam, soort, datatype, gain, eenheid, enum, technisch bereik, hoe je het uitleest, wetenswaardigheden en functiegroep. |
+| **Parameters** | 3092 | Alle objecten van het protocol, van álle toestellen die het gebruiken (dus ook bijvoorbeeld cv-ketels), niet alleen de Confida. Per object: index, subindex, code, Nederlandse naam, soort, datatype, gain, eenheid, enum, technisch bereik, hoe je het uitleest, wetenswaardigheden en functiegroep. Kolom **Bevestigd op Confida 40** markeert de objecten die op een Confida 40 bevestigd zijn. |
 | **Enums** | 1160 | Keuzelijsten voor enum-parameters: waarde → Nederlandse omschrijving. |
 | **Foutcodes** | 1986 | De foutcodes in 24 categorieën, weergave `H{categorie}.{nummer}`, met korte Nederlandse omschrijving. |
 
@@ -25,8 +25,10 @@ Omdat het codeboek alle objecten van het protocol bevat, is het mogelijk ook bru
 voor **andere Remeha-toestellen met Bluetooth** die hetzelfde protocol spreken. Dat is
 niet getest.
 
-**Niet elk object bestaat op elk toestel.** Een Confida 40 gebruikt er een paar
-honderd. Of jouw toestel een object kent, zie je in de ESPHome-log: krijg je een echte
+**Niet elk object bestaat op elk toestel.** Een Confida 40 gebruikt er ruim 400; die
+staan gemarkeerd in de kolom **"Bevestigd op Confida 40"**: de objecten die het toestel
+in zijn standaard GetList teruggeeft, plus de objecten die de meegeleverde YAML met
+succes uitleest. Of jouw toestel een object kent, zie je in de ESPHome-log: krijg je een echte
 waarde terug, of een foutmelding / `0` / `-327,68`?
 
 ## Kolom "Soort"

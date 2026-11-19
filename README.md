@@ -58,7 +58,9 @@ objecten.
 `data/Remeha_parametercodeboek.xlsx`, tabblad **"Parameters"**: alle objecten van het
 protocol, met Nederlandse namen. Zoek op de code (bv. `HM001`) of op een trefwoord in
 de naam. Niet elk object bestaat op elk toestel; kijk na het toevoegen in de log of
-jouw toestel een geldige waarde teruggeeft. De kolommen vertalen direct naar YAML-velden:
+jouw toestel een geldige waarde teruggeeft. Heb je een Confida 40, filter dan op de kolom
+**"Bevestigd op Confida 40"**: die objecten zijn op dat toestel bevestigd. De kolommen
+vertalen direct naar YAML-velden:
 
 | kolom in het codeboek | YAML-veld |
 |---|---|
