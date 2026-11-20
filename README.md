@@ -236,4 +236,13 @@ components/remeha_confida/  de external component (C++/Python-driver), voor beid
 docs/readme.md              technische protocolreferentie
 data/                       codeboek: alle objecten, enums en foutcodes
 secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
+LICENSE                     MIT-licentie
 ```
+
+## Licentie
+
+De code valt onder de [MIT-licentie](LICENSE): je mag hem vrij gebruiken, aanpassen en
+delen, zolang de licentietekst erbij blijft. Gebruik is op eigen risico, zonder garantie.
+
+Het codeboek in [`data/`](data/README.md) is naslag zonder garantie. Het is niet officieel
+en niet afkomstig van of goedgekeurd door Remeha. Merknamen zijn van hun eigenaars.
