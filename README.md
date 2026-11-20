@@ -38,6 +38,9 @@ naast het toestel: zie je `EHC-…`, neem dan `remeha-confida.yaml`; zie je
 - **sensoren** — zoals aanvoer/retour, buitentemperatuur, waterdruk, debiet, COP,
   elektrisch en thermisch vermogen, compressor- en ventilatortoerental, modulatie,
   pompstanden en de status van de buitenunit.
+- **aan/uit-waarden** (`binary_sensor`): of de pomp en de compressor draaien, of de
+  buitenunit ontdooit, of de vorstbeveiliging actief is en of de warmtepomp in storing
+  staat.
 - **Tellers** (`total_increasing`) — energieverbruik en -levering, productie-uren,
   starts en ontdooicycli.
 - **instelbare parameters** (`number`) — o.a. stooklijn (voetpunt, helling,
@@ -85,8 +88,13 @@ daarmee of het onder `sensor:` of `number:` hoort:
 - **`Counter`** — een oplopende teller (energie, uren, starts). `sensor:` met
   `state_class: total_increasing`.
 
-**Stap 2 — zet het blok in de YAML**, onder `sensor:` (alleen lezen) of `number:`
-(instelbaar).
+**Aan/uit-waarden.** Staat in de kolom "Enum" `YesNo`, `OffOn` of `InactiveActive`,
+dan is het een aan/uit-waarde. Zet die onder `binary_sensor:` (alleen lezen) of, als
+het een instelbare `Parameter` is, onder `switch:`. In Home Assistant krijg je dan
+aan/uit in plaats van 0/1, wat handiger is in automatiseringen.
+
+**Stap 2 — zet het blok in de YAML**, onder `sensor:` of `binary_sensor:` (alleen
+lezen), of onder `number:` of `switch:` (instelbaar).
 
 Sensor toevoegen (onder `sensor:`):
 
@@ -134,6 +142,39 @@ waarden (NL)" of in het tabblad **"Enums"** van het codeboek.
 
 > Een `number` wijzigt een **echte toestelinstelling**. Twijfel je, maak er dan een
 > alleen-lezen `sensor` van (zelfde velden, onder `sensor:`).
+
+Aan/uit-waarde toevoegen (onder `binary_sensor:`):
+
+```yaml
+  - platform: remeha_confida
+    name: "Draait de pomp? (AM015)"
+    index: 0x5012          # kolom "CANopen index", met 0x ervoor
+    device_class: running  # optioneel: HA-weergaveklasse (running/problem/heat/...)
+    entity_category: diagnostic
+    icon: mdi:pump
+```
+
+Je hoeft geen `value_type` of `gain` op te geven. Elke waarde die niet 0 is, telt als
+"aan". Dat werkt voor YesNo/OffOn-enums (0/1) en voor statusvlaggen (0/0xFF). Wil je
+dat alleen één bepaalde waarde als "aan" telt, zet dan `true_value:` (bijvoorbeeld
+`true_value: 2`). Omdraaien kan met het standaardfilter `filters: [invert]`.
+
+Instelbare aan/uit-parameter toevoegen (onder `switch:`):
+
+```yaml
+  - platform: remeha_confida
+    name: "Mijn aan/uit-instelling"
+    index: 0x....          # kolom "CANopen index"; kolom "Soort" moet Parameter zijn
+    read: single           # kolom "Uitlezen"
+    entity_category: config
+```
+
+Aan schrijft `1` naar het toestel, uit schrijft `0`. Gebruikt het toestel een andere
+waarde voor "aan", zet dan `true_value:`. Net als een `number` wordt een `switch`
+meegepolld, zodat hij de werkelijke stand van het toestel toont. Bij het opstarten van
+de ESP schrijft een `switch` niets.
+
+> Ook een `switch` wijzigt een **echte toestelinstelling**.
 
 ## Benodigdheden
 
@@ -237,6 +278,7 @@ docs/readme.md              technische protocolreferentie
 data/                       codeboek: alle objecten, enums en foutcodes
 secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
 LICENSE                     MIT-licentie
+CHANGELOG.md                wijzigingen per versie
 ```
 
 ## Licentie

@@ -3,9 +3,10 @@
 # ----------------------------------------------------------------------------
 #  This file defines the HUB component (one per appliance): the BLE connection,
 #  the GATT UUIDs and the pairing passkey. The per-value entities live in the
-#  sibling platform files (sensor.py / text_sensor.py / number.py), which all
-#  import the shared symbols defined here (value-type map, config keys, the
-#  read-mode map). AUTO_LOAD pulls in those three platforms automatically.
+#  sibling platform files (sensor.py / text_sensor.py / number.py /
+#  binary_sensor.py / switch.py), which all import the shared symbols defined
+#  here (value-type map, config keys, the read-mode map). AUTO_LOAD pulls in the
+#  matching core platforms automatically.
 # ============================================================================
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -14,11 +15,13 @@ from esphome.components import ble_client, esp32_ble, esp32_ble_tracker, number
 # own sensor.py/text_sensor.py submodules, and those shadow the bare names once
 # ESPHome imports them, which would break new_sensor()/new_text_sensor() below.
 from esphome.components import sensor as core_sensor, text_sensor as core_text_sensor
+# Same for switch: switch.py in this component would shadow the core module.
+from esphome.components import switch as core_switch
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_TOTAL_INCREASING
 
 CODEOWNERS = ["@diy"]
 DEPENDENCIES = ["ble_client", "esp32_ble"]
-AUTO_LOAD = ["sensor", "text_sensor", "number"]
+AUTO_LOAD = ["sensor", "text_sensor", "number", "binary_sensor", "switch"]
 MULTI_CONF = True
 
 remeha_ns = cg.esphome_ns.namespace("remeha_confida")
@@ -26,6 +29,7 @@ RemehaConfida = remeha_ns.class_(
     "RemehaConfida", cg.PollingComponent, ble_client.BLEClientNode
 )
 RemehaNumber = remeha_ns.class_("RemehaNumber", number.Number, cg.Component)
+RemehaSwitch = remeha_ns.class_("RemehaSwitch", core_switch.Switch, cg.Component)
 
 # Shared value-type map (used by sensor + number platforms). Both the native
 # tokens (u16/i16/...) and Modbus-style aliases (U_WORD/S_WORD/...) are accepted.
@@ -51,6 +55,9 @@ CONF_SUBINDEX = "subindex"
 CONF_TYPE = "value_type"
 CONF_GAIN = "gain"
 CONF_READ = "read"
+# binary_sensor / switch: the raw value that means "on". Not set = any non-zero
+# value is on (covers both YesNo/OffOn enums, 0/1, and status flags, 0/0xFF).
+CONF_TRUE_VALUE = "true_value"
 
 # How an object is fetched. "bulk" = included in the single GetList round (default,
 # cheapest). "single" = fetched with its own individual read request (operation 0x00),

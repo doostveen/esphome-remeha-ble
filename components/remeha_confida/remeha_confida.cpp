@@ -869,7 +869,8 @@ void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint
     it.text_sensor->publish_state(s);
     return;
   }
-  if (it.sensor == nullptr && it.number == nullptr) return;
+  if (it.sensor == nullptr && it.number == nullptr && it.binary_sensor == nullptr &&
+      it.switch_ == nullptr) return;
   int64_t raw = 0; bool ok = true;
   bool is_signed = (it.type == VT_I8 || it.type == VT_I16 || it.type == VT_I32);
   if (flag == 0x02) {
@@ -894,6 +895,14 @@ void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint
             (it.type == VT_I32 && flag != 0x02 && raw == -2147483648LL) ||
             (it.type == VT_U32 && flag != 0x02 && raw == 0xFFFFFFFFLL);
   if (!ok || na) return;
+  // On/off entities: decided on the RAW value, before any bool/gain mapping.
+  if (it.binary_sensor != nullptr || it.switch_ != nullptr) {
+    bool on = it.has_true_value ? (raw == it.true_value) : (raw != 0);
+    ESP_LOGD(TAG, "0x%04X:%u = %lld -> %s", it.index, it.sub, (long long) raw, on ? "aan" : "uit");
+    if (it.binary_sensor != nullptr) it.binary_sensor->publish_state(on);
+    if (it.switch_ != nullptr) it.switch_->publish_state(on);  // actual current state
+    return;
+  }
   // Boolean status flags (e.g. 0x502E:x) use 0 = no and 0xFF = yes (shown as
   // "Ja"). Map any non-zero value to 1.
   if (it.type == VT_BOOL) raw = raw != 0 ? 1 : 0;
@@ -1019,6 +1028,17 @@ void RemehaNumber::control(float value) {
   ESP_LOGI(TAG, "number set %.3f -> raw %ld -> write 0x%04X:%u", value, raw, index_, sub_);
   parent_->enqueue_write(node_, index_, sub_, data);
   this->publish_state(value);  // optimistic; the next poll confirms the read-back
+}
+
+void RemehaSwitch::write_state(bool state) {
+  if (parent_ == nullptr) {
+    ESP_LOGW(TAG, "switch '%s' has no parent hub", this->get_name().c_str());
+    return;
+  }
+  std::vector<uint8_t> data{(uint8_t)(state ? true_value_ : 0)};
+  ESP_LOGI(TAG, "switch %s -> write 0x%04X:%u = 0x%02X", state ? "aan" : "uit", index_, sub_, data[0]);
+  parent_->enqueue_write(node_, index_, sub_, data);
+  this->publish_state(state);  // optimistic; the next poll confirms the read-back
 }
 
 }  // namespace remeha_confida

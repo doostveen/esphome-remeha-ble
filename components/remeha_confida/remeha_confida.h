@@ -4,7 +4,7 @@
 //  RemehaConfida is both a PollingComponent (update() every 30 s) and a
 //  BLEClientNode (receives GATT events). It owns a list of RemehaItem, each
 //  the binding between one appliance object (node/index/subindex) and one HA
-//  entity (sensor / text_sensor / number). The full protocol is documented at
+//  entity (sensor / text_sensor / number / binary_sensor / switch). The full protocol is documented at
 //  the top of remeha_confida.cpp; this header just declares the moving parts.
 // ============================================================================
 #pragma once
@@ -18,6 +18,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/switch/switch.h"
 #include <esp_gattc_api.h>
 #include <esp_gap_ble_api.h>
 
@@ -44,6 +46,10 @@ struct RemehaItem {
   sensor::Sensor *sensor{nullptr};        // numeric read-only value
   text_sensor::TextSensor *text_sensor{nullptr};  // string value (e.g. device name)
   number::Number *number{nullptr};   // writable param: read-back is published here too
+  binary_sensor::BinarySensor *binary_sensor{nullptr};  // on/off read-only value
+  switch_::Switch *switch_{nullptr}; // writable on/off param: read-back is published here too
+  bool has_true_value{false};        // binary_sensor/switch: true = on only when raw == true_value
+  uint8_t true_value{1};             //   (false = any non-zero raw value is on)
   bool single{false};                // true = read via individual request (op 0x00), not bulk GetList
 };
 
@@ -193,6 +199,26 @@ class RemehaNumber : public number::Number, public Component {
   uint8_t sub_{0};
   ValueType type_{VT_U16};
   float gain_{1.0f};
+};
+
+// Writable on/off parameter (e.g. a YesNo/OffOn enum) exposed as a Home Assistant
+// switch. On = write true_value (default 1), off = write 0. Like RemehaNumber it is
+// also polled, so the switch shows the appliance's real read-back state.
+class RemehaSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(RemehaConfida *p) { parent_ = p; }
+  void set_node(uint8_t v) { node_ = v; }
+  void set_index(uint16_t v) { index_ = v; }
+  void set_sub(uint8_t v) { sub_ = v; }
+  void set_true_value(uint8_t v) { true_value_ = v; }
+
+ protected:
+  void write_state(bool state) override;
+  RemehaConfida *parent_{nullptr};
+  uint8_t node_{1};
+  uint16_t index_{0};
+  uint8_t sub_{0};
+  uint8_t true_value_{1};
 };
 
 }  // namespace remeha_confida
