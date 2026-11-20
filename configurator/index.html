@@ -81,7 +81,9 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--m
 td.name { min-width: 16ch; }
 tr.on-r td { background: var(--accent-soft); }
 tr.on-w td { background: var(--warm-soft); }
-td select { padding: 3px 5px; font-size: .82rem; min-width: 9ch; }
+td.chk, th.chk { text-align: center; width: 1%; white-space: nowrap; }
+td.chk input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+td.chk input.warm { accent-color: var(--warm); }
 .counts { font-family: var(--font-mono); font-size: .85rem; }
 pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: .78rem; line-height: 1.45; padding: 14px; border-radius: 6px; overflow: auto; max-height: 70vh; white-space: pre; }
 .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--fg); }
@@ -180,7 +182,7 @@ pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-fa
     </div>
     <div class="tablebox">
       <table>
-        <thead><tr><th>Keuze</th><th>Code</th><th>Naam</th><th>Soort</th><th>Bereik (toestel)</th><th>Niveau</th><th>Print</th></tr></thead>
+        <thead><tr><th class="chk">Lezen</th><th class="chk">Instelbaar</th><th>Code</th><th>Naam</th><th>Soort</th><th>Bereik (toestel)</th><th>Niveau</th><th>Print</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
@@ -339,16 +341,16 @@ function render() {
     if (q && !((o.c || "").toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r.idx).toLowerCase().includes(q))) continue;
     if (++shown > 800) break;
     const w = writable(o);
-    html.push('<tr class="' + (mode ? "on-" + mode : "") + '"><td><select data-k="' + r.key + '" aria-label="Keuze voor ' + esc(o.c || o.n) + '">' +
-      '<option value=""' + (mode ? "" : " selected") + ">niet</option>" +
-      '<option value="r"' + (mode === "r" ? " selected" : "") + ">lezen</option>" +
-      (w ? '<option value="w"' + (mode === "w" ? " selected" : "") + ">instelbaar</option>" : "") +
-      "</select></td><td class=\"code\">" + esc(o.c || "0x" + hex4(r.idx)) + (r.sub && o.a ? ":" + r.sub : "") +
+    const lbl = esc(o.c || o.n);
+    html.push('<tr class="' + (mode ? "on-" + mode : "") + '"><td class="chk"><input type="checkbox" data-k="' + r.key + '" data-m="r"' +
+      (mode ? " checked" : "") + ' aria-label="' + lbl + ' lezen"></td><td class="chk">' +
+      (w ? '<input type="checkbox" class="warm" data-k="' + r.key + '" data-m="w"' + (mode === "w" ? " checked" : "") + ' aria-label="' + lbl + ' instelbaar">' : "") +
+      "</td><td class=\"code\">" + esc(o.c || "0x" + hex4(r.idx)) + (r.sub && o.a ? ":" + r.sub : "") +
       '</td><td class="name">' + esc(o.n) + "</td><td>" + ({ P: "instelling", S: "meetwaarde", C: "teller" }[o.k]) +
       '</td><td class="num">' + esc(rangeText(r)) + '</td><td class="num">' + esc(LEVEL_LABEL[r.level] || r.level) +
       '</td><td class="num">' + esc(NODE_LABEL[r.node] || "node " + r.node) + "</td></tr>");
   }
-  $("tbody").innerHTML = html.join("") || '<tr><td colspan="7" class="note">Niets gevonden. Pas het filter aan of lees eerst een dump in.</td></tr>';
+  $("tbody").innerHTML = html.join("") || '<tr><td colspan="8" class="note">Niets gevonden. Pas het filter aan of lees eerst een dump in.</td></tr>';
   updateCounts();
   renderYaml();
 }
@@ -446,8 +448,12 @@ function renderYaml() {
 // ---- events ----
 $("tbody").addEventListener("change", (e) => {
   const k = e.target.dataset.k; if (!k) return;
-  if (e.target.value) sel[k] = e.target.value; else delete sel[k];
-  e.target.closest("tr").className = e.target.value ? "on-" + e.target.value : "";
+  // instelbaar implies lezen; unticking lezen also drops instelbaar
+  const tr = e.target.closest("tr"), m = e.target.dataset.m, on = e.target.checked;
+  const v = m === "w" ? (on ? "w" : "r") : (on ? "r" : "");
+  if (v) sel[k] = v; else delete sel[k];
+  for (const cb of tr.querySelectorAll("input[data-m]")) cb.checked = cb.dataset.m === "r" ? !!v : v === "w";
+  tr.className = v ? "on-" + v : "";
   store("sel", sel);
   updateCounts();
   renderYaml();
