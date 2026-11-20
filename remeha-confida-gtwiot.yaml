@@ -65,7 +65,7 @@ external_components:
       path: components
     components: [remeha_confida]
   # Voor de publieke release wordt dit de GitHub-bron (publiek, geen token):
-  #   - source: github://mcc-tweakers/esphome-remeha-confida@main
+  #   - source: github://mcc-tweakers/esphome-remeha-ble@main
   #     components: [remeha_confida]
 
 # Handmatige herstartknop (verschijnt in HA en de webinterface).
