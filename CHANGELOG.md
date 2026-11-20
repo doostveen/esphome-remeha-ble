@@ -22,6 +22,8 @@ behaviour in Home Assistant do not change.
 - *Use the choice of this ESP* now also takes over the entity names and the device
   name, so existing entities stay the same entities in Home Assistant.
 - Clearer note under the YAML.
+- The status line after taking over a choice follows a language switch.
+- README: screenshots and an explanation of the rows with a **+**.
 - No compiler warning about an empty `else` in `dump_config` with log level INFO.
 
 ## v1.0.0 (2026-11-20)

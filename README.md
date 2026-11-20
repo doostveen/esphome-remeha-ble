@@ -18,7 +18,7 @@ web page, the **configurator**, turns your choice into a complete ESPHome YAML.
   (EHC controller) are expected to work; please report your experience in an issue.
 - Use at your own risk. This project is not affiliated with Remeha.
 
-<!-- SCREENSHOT: the configurator on the ESP (docs/images/configurator.png) -->
+![The configurator on the ESP](docs/images/configurator.png)
 
 ## What you need
 
@@ -58,7 +58,7 @@ hand: see the [CHANGELOG](CHANGELOG.md).
 
 ## The configurator
 
-<!-- SCREENSHOT: choosing values (docs/images/configurator-choose.png) -->
+![Choosing values, with two rows opened](docs/images/configurator-choose.png)
 
 The page at `http://<esp-ip>/remeha` is served by the ESP itself.
 
@@ -71,7 +71,7 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
 - **Quick select** buttons tick a group at once: Basic, Energy, Outdoor unit, Room,
   Heating curve.
 - Objects with several elements (per zone, per activity, per producer) are shown on one
-  row with a **+** to show the elements.
+  row with a **+** to show the elements (see *Rows with a +* below).
 - **Search and filters** by code, name, group, type and level.
 - **Start from your current choice:** *Use the choice of this ESP* ticks what the
   firmware reads now; *Read a YAML* takes over the remeha_ble entities from a YAML
@@ -82,6 +82,28 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
   of the scanned appliance in the YAML. If you later connect the ESP to another type,
   the log says so and the *Remeha appliance* entity shows it.
 
+### Rows with a +
+
+Some objects are not one value but a short list of values under one code, for example
+one per zone. Such an object gets one row with **+** and the number of elements
+(`CP000 2×`). Press **+** to show the elements underneath, each with a label:
+
+- **zone 1, zone 2:** zone objects (codes starting with C, such as the heating curve and
+  room temperatures).
+- **activity 1 to 6:** the room setpoints per activity of the time program (CP080,
+  CP140); with more zones you see *zone 2, activity 1* and so on.
+- **producer 1, producer 2:** energy counters per producer. Producer 1 is the heat
+  pump; producer 2 is most likely the backup heater.
+
+The tick boxes on the **+** row select or clear all elements at once; a half-filled box
+means only some are selected. You can also tick single elements. When a board has only
+one element of an object, it is shown as a normal row with the element number, such as
+`CP000:1`.
+
+The same code can appear on two rows with a different **Board**: the *controller*
+(node 1) and the *extension* board (node 4) each have their own copy of many objects.
+For most installations the controller is the one you want.
+
 The configurator is switched on with `configurator: true` under `remeha_ble:` and
 needs `web_server:`. It takes about 140 kB of flash; set it to `false` once you are done
 if you need the space.
@@ -89,6 +111,8 @@ if you need the space.
 ## The YAML in short
 
 The configurator writes the whole file, but it helps to know what is in it.
+
+![The generated YAML](docs/images/configurator-yaml.png)
 
 ```yaml
 remeha_ble:

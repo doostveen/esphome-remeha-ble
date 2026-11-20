@@ -21,7 +21,7 @@ ESPHome-YAML.
   Issue.
 - Nutzung auf eigene Gefahr. Dieses Projekt steht in keiner Verbindung zu Remeha.
 
-<!-- SCREENSHOT: der Konfigurator auf dem ESP (docs/images/configurator.png) -->
+![Der Konfigurator auf dem ESP](docs/images/configurator.png)
 
 ## Was du brauchst
 
@@ -62,7 +62,7 @@ Hand: siehe das [CHANGELOG](CHANGELOG.md).
 
 ## Der Konfigurator
 
-<!-- SCREENSHOT: Werte auswählen (docs/images/configurator-choose.png) -->
+![Werte auswählen, zwei Zeilen aufgeklappt](docs/images/configurator-choose.png)
 
 Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
 
@@ -75,7 +75,7 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
 - Mit der **Schnellauswahl** wählst du eine ganze Gruppe: Basis, Energie, Außeneinheit,
   Raum, Heizkurve.
 - Objekte mit mehreren Elementen (pro Heizkreis, pro Aktivität, pro Erzeuger) stehen in
-  einer Zeile mit einem **+**, um die Elemente anzuzeigen.
+  einer Zeile mit einem **+**, um die Elemente anzuzeigen (siehe *Zeilen mit einem +* unten).
 - **Suchen und filtern** nach Code, Name, Gruppe, Art und Ebene.
 - **Mit der aktuellen Auswahl beginnen:** *Auswahl dieses ESP übernehmen* kreuzt an,
   was die Firmware jetzt ausliest; *YAML einlesen* übernimmt die
@@ -87,6 +87,29 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
   Artikelnummer des gescannten Geräts in die YAML. Schließt du den ESP später an einen
   anderen Typ an, meldet das Log das und die Entität *Remeha Gerät* zeigt es an.
 
+### Zeilen mit einem +
+
+Manche Objekte sind kein einzelner Wert, sondern eine kurze Reihe von Werten unter
+einem Code, zum Beispiel einer pro Heizkreis. Ein solches Objekt bekommt eine Zeile mit
+**+** und der Anzahl der Elemente (`CP000 2×`). Drücke **+**, um die Elemente darunter
+anzuzeigen, jedes mit einer Bezeichnung:
+
+- **Heizkreis 1, Heizkreis 2:** Heizkreis-Objekte (Codes, die mit C beginnen, etwa die
+  Heizkurve und die Raumtemperaturen).
+- **Aktivität 1 bis 6:** die Raumsollwerte pro Aktivität des Zeitprogramms (CP080,
+  CP140); bei mehreren Heizkreisen siehst du *Heizkreis 2, Aktivität 1* usw.
+- **Erzeuger 1, Erzeuger 2:** Energiezähler pro Erzeuger. Erzeuger 1 ist die
+  Wärmepumpe; Erzeuger 2 ist sehr wahrscheinlich die Zusatzheizung.
+
+Die Kästchen in der Zeile mit **+** wählen alle Elemente auf einmal aus oder ab; ein
+halb gefülltes Kästchen bedeutet, dass nur ein Teil ausgewählt ist. Du kannst auch
+einzelne Elemente ankreuzen. Hat eine Platine nur ein Element eines Objekts, steht es
+als normale Zeile mit der Elementnummer, etwa `CP000:1`.
+
+Derselbe Code kann in zwei Zeilen mit unterschiedlicher **Platine** stehen: der
+*Regler* (Knoten 1) und die *Erweiterungsplatine* (Knoten 4) haben jeweils eine eigene
+Kopie vieler Objekte. Für die meisten Anlagen ist die des Reglers die richtige.
+
 Der Konfigurator wird mit `configurator: true` unter `remeha_ble:` eingeschaltet und
 braucht `web_server:`. Er belegt etwa 140 kB Flash; setze ihn auf `false`, wenn du
 fertig bist und den Platz brauchst.
@@ -94,6 +117,8 @@ fertig bist und den Platz brauchst.
 ## Die YAML in Kürze
 
 Der Konfigurator schreibt die ganze Datei, aber es hilft zu wissen, was darin steht.
+
+![Die erzeugte YAML](docs/images/configurator-yaml.png)
 
 ```yaml
 remeha_ble:

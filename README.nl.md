@@ -18,7 +18,7 @@ webpagina, de **configurator**, maakt van je keuze een complete ESPHome-YAML.
   spreken (EHC-regelaar) werken naar verwachting ook; meld je ervaring in een issue.
 - Gebruik op eigen risico. Dit project staat los van Remeha.
 
-<!-- SCREENSHOT: de configurator op de ESP (docs/images/configurator.png) -->
+![De configurator op de ESP](docs/images/configurator.png)
 
 ## Wat heb je nodig
 
@@ -59,7 +59,7 @@ Je keuze en de namen van je entiteiten worden overgenomen. Met de hand: zie de
 
 ## De configurator
 
-<!-- SCREENSHOT: waarden kiezen (docs/images/configurator-choose.png) -->
+![Waarden kiezen, met twee regels opengeklapt](docs/images/configurator-choose.png)
 
 De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
 
@@ -72,7 +72,7 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
 - Met **Snel aanvinken** kies je een hele groep: Basis, Energie, Buitenunit, Ruimte,
   Stooklijn.
 - Objecten met meerdere elementen (per groep, per activiteit, per producent) staan op
-  één regel met een **+** om de elementen te tonen.
+  één regel met een **+** om de elementen te tonen (zie *Regels met een +* hieronder).
 - **Zoeken en filteren** op code, naam, groep, soort en niveau.
 - **Begin bij je huidige keuze:** *Keuze van deze ESP overnemen* vinkt aan wat de
   firmware nu uitleest; *YAML inlezen* neemt de remeha_ble-entiteiten over uit een
@@ -83,6 +83,29 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
   van het gescande toestel in de YAML. Sluit je de ESP later aan op een ander type, dan
   meldt de log dat en zie je het bij de entiteit *Remeha toestel*.
 
+### Regels met een +
+
+Sommige objecten zijn geen losse waarde maar een korte rij waarden onder één code,
+bijvoorbeeld één per groep. Zo'n object krijgt één regel met **+** en het aantal
+elementen (`CP000 2×`). Druk op **+** om de elementen eronder te tonen, elk met een
+label:
+
+- **groep 1, groep 2:** groepsobjecten (codes die met C beginnen, zoals de stooklijn en
+  de ruimtetemperaturen).
+- **activiteit 1 tot 6:** de ruimtesetpunten per activiteit van het klokprogramma
+  (CP080, CP140); met meer groepen zie je *groep 2, activiteit 1* enzovoort.
+- **producent 1, producent 2:** energietellers per producent. Producent 1 is de
+  warmtepomp; producent 2 is waarschijnlijk de bijverwarming.
+
+De vinkjes op de regel met **+** kiezen of wissen alle elementen tegelijk; een half
+gevuld vakje betekent dat er maar een deel gekozen is. Je kunt ook losse elementen
+aanvinken. Heeft een print maar één element van een object, dan staat het als gewone
+regel met het elementnummer, zoals `CP000:1`.
+
+Dezelfde code kan op twee regels staan met een andere **Print**: de *regelaar*
+(node 1) en de *uitbreidingsprint* (node 4) hebben elk een eigen kopie van veel
+objecten. Voor de meeste installaties wil je die van de regelaar.
+
 De configurator staat aan met `configurator: true` onder `remeha_ble:` en heeft
 `web_server:` nodig. Hij kost ongeveer 140 kB flash; zet hem op `false` als je klaar
 bent en die ruimte nodig hebt.
@@ -90,6 +113,8 @@ bent en die ruimte nodig hebt.
 ## De YAML in het kort
 
 De configurator schrijft het hele bestand, maar het helpt om te weten wat erin staat.
+
+![De gemaakte YAML](docs/images/configurator-yaml.png)
 
 ```yaml
 remeha_ble:
