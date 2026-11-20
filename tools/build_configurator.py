@@ -24,25 +24,26 @@ import openpyxl
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
-# YAML-kop per route. {DEVICE_NAME} {FRIENDLY_NAME} {BLE_MAC} {REF} {EXPECTED}
-# worden door de configurator (of hieronder voor de start-YAML's) ingevuld.
+# YAML-kop per route en taal. {DEVICE_NAME} {FRIENDLY_NAME} {BLE_MAC} {REF} {EXPECTED}
+# worden door de configurator (of hieronder voor de start-YAML's) ingevuld;
+# {T:...} zijn de vertaalbare teksten uit TEXT.
 # ---------------------------------------------------------------------------
 HEAD = """# =====================================================================
 #  {TITLE}
-#  Gemaakt met de configurator van esphome-remeha-ble.
+#  {T:made}
 # ---------------------------------------------------------------------
-#  Vul in de secrets.yaml van je ESPHome in:
+#  {T:secrets}
 #     wifi_ssid / wifi_password{SECRET_LINE}
-#  De component wordt bij het compileren uit GitHub gehaald (geen token nodig).
-#  Gebruik op eigen risico. Een BLE-verbinding tegelijk: wil je met de app
-#  verbinden, zet dan de schakelaar "Remeha uitlezing" uit.
+#  {T:github}
+#  {T:risk1}
+#  {T:risk2}
 # =====================================================================
 
 substitutions:
   device_name: {DEVICE_NAME}
   friendly_name: "{FRIENDLY_NAME}"
-  # 00:00:00:00:00:00 = automatisch zoeken op naam ("{PREFIX}..."). Heb je meerdere
-  # toestellen, vul dan het MAC in (staat in de log: "BLE gezien: ...").
+  # {T:mac1}
+  # {T:mac2}
   ble_mac: "{BLE_MAC}"
 
 esphome:
@@ -50,7 +51,7 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
-  board: esp32dev          # pas aan als je een ander ESP32-board hebt
+  board: esp32dev          # {T:board}
   framework:
     type: esp-idf
 
@@ -75,12 +76,12 @@ external_components:
 
 button:
   - platform: restart
-    name: "Remeha ESP herstart"
+    name: "{T:restart}"
     icon: mdi:restart
-  # Leest eenmalig wat het toestel kan (o.a. de menubeschrijving 0x502B) en zet het
-  # als DUMP-regels in de log. Plak die regels in de configurator.
+  # {T:dump1}
+  # {T:dump2}
   - platform: template
-    name: "Remeha discovery-dump"
+    name: "{T:dump}"
     entity_category: diagnostic
     icon: mdi:magnify-scan
     on_press:
@@ -88,7 +89,7 @@ button:
 
 switch:
   - platform: template
-    name: "Remeha uitlezing"
+    name: "{T:active}"
     icon: mdi:bluetooth
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
@@ -115,41 +116,106 @@ remeha_confida:
   notify_uuid:  "ab9af948-fb86-492d-820d-bdea2dcb7ecf"
 {AUTH}  device_name_prefix: "{PREFIX}"
 {EXPECTED}  write_result:
-    name: "Remeha laatste schrijfresultaat"
+    name: "{T:wres}"
   reconnect_reason:
-    name: "Remeha laatste herverbind-reden"
+    name: "{T:rreason}"
   reconnect_count:
-    name: "Remeha herverbindingen"
+    name: "{T:rcount}"
   appliance:
-    name: "Remeha toestel"
-  # Configurator-pagina op de ESP zelf: open http://<ip-van-de-esp>/remeha,
-  # druk op "Scan toestel" en kies wat je wilt zien. Zet op false om flash te sparen.
+    name: "{T:appliance}"
+  # {T:cfg1}
+  # {T:cfg2}
   configurator: true
 """
 
+TEXT = {
+    "nl": dict(
+        made="Gemaakt met de configurator van esphome-remeha-ble.",
+        secrets="Vul in de secrets.yaml van je ESPHome in:",
+        github="De component wordt bij het compileren uit GitHub gehaald (geen token nodig).",
+        risk1="Gebruik op eigen risico. Een BLE-verbinding tegelijk: wil je met de app",
+        risk2='verbinden, zet dan de schakelaar "Remeha uitlezing" uit.',
+        mac1='00:00:00:00:00:00 = automatisch zoeken op naam ("{PREFIX}..."). Heb je meerdere',
+        mac2='toestellen, vul dan het MAC in (staat in de log: "BLE gezien: ...").',
+        board="pas aan als je een ander ESP32-board hebt",
+        restart="Remeha ESP herstart", dump="Remeha discovery-dump", active="Remeha uitlezing",
+        dump1="Leest eenmalig wat het toestel kan (o.a. de menubeschrijving 0x502B) en zet het",
+        dump2="als DUMP-regels in de log. Plak die regels in de configurator.",
+        wres="Remeha laatste schrijfresultaat", rreason="Remeha laatste herverbind-reden",
+        rcount="Remeha herverbindingen", appliance="Remeha toestel",
+        cfg1='Configurator-pagina op de ESP zelf: open http://<ip-van-de-esp>/remeha,',
+        cfg2='druk op "Scan toestel" en kies wat je wilt zien. Zet op false om flash te sparen.',
+        t_gtw22="Remeha met ingebouwde Bluetooth (GTW-22, bv. Confida 40)",
+        t_gtwiot="Remeha via de GTW-IoT home-hub (bv. Confida 10)",
+        s_gtw22="\n#     remeha_bt_key : het 6-cijferige nummer van de BLE-sticker",
+        s_gtwiot="\n#  (geen remeha_bt_key nodig: de GTW-IoT koppelt zonder passkey)",
+        io_gtw22="wij leveren de passkey (het stickernummer)",
+        a_gtw22="6-cijferig stickernummer", a_gtwiot="GTW-IoT: geen pairing, geen passkey",
+    ),
+    "en": dict(
+        made="Made with the esphome-remeha-ble configurator.",
+        secrets="Put these in the secrets.yaml of your ESPHome:",
+        github="The component is fetched from GitHub when compiling (no token needed).",
+        risk1="Use at your own risk. Only one BLE connection at a time: to connect with the app,",
+        risk2='switch off "Remeha reading" first.',
+        mac1='00:00:00:00:00:00 = find the appliance by name ("{PREFIX}..."). With several',
+        mac2='appliances, fill in the MAC (it is in the log: "BLE gezien: ...").',
+        board="change this if you use another ESP32 board",
+        restart="Remeha ESP restart", dump="Remeha discovery dump", active="Remeha reading",
+        dump1="Reads once what the appliance offers (including the menu description 0x502B) and",
+        dump2="writes it to the log as DUMP lines. Paste those lines into the configurator.",
+        wres="Remeha last write result", rreason="Remeha last reconnect reason",
+        rcount="Remeha reconnects", appliance="Remeha appliance",
+        cfg1="Configurator page on the ESP itself: open http://<esp-ip>/remeha,",
+        cfg2='press "Scan appliance" and pick what you want. Set to false to save flash.',
+        t_gtw22="Remeha with built-in Bluetooth (GTW-22, e.g. Confida 40)",
+        t_gtwiot="Remeha via the GTW-IoT home hub (e.g. Confida 10)",
+        s_gtw22="\n#     remeha_bt_key : the 6-digit number on the BLE sticker",
+        s_gtwiot="\n#  (no remeha_bt_key needed: the GTW-IoT pairs without a passkey)",
+        io_gtw22="we supply the passkey (the sticker number)",
+        a_gtw22="6-digit sticker number", a_gtwiot="GTW-IoT: no pairing, no passkey",
+    ),
+    "de": dict(
+        made="Erstellt mit dem Konfigurator von esphome-remeha-ble.",
+        secrets="In die secrets.yaml deines ESPHome eintragen:",
+        github="Die Komponente wird beim Kompilieren von GitHub geladen (kein Token nötig).",
+        risk1="Nutzung auf eigene Gefahr. Nur eine BLE-Verbindung gleichzeitig: um dich mit der App",
+        risk2='zu verbinden, schalte zuerst "Remeha Auslesen" aus.',
+        mac1='00:00:00:00:00:00 = Gerät automatisch über den Namen finden ("{PREFIX}..."). Bei',
+        mac2='mehreren Geräten die MAC eintragen (steht im Log: "BLE gezien: ...").',
+        board="anpassen, wenn du ein anderes ESP32-Board nutzt",
+        restart="Remeha ESP Neustart", dump="Remeha Discovery-Dump", active="Remeha Auslesen",
+        dump1="Liest einmalig, was das Gerät kann (u. a. die Menübeschreibung 0x502B), und schreibt",
+        dump2="es als DUMP-Zeilen ins Log. Diese Zeilen in den Konfigurator einfügen.",
+        wres="Remeha letztes Schreibergebnis", rreason="Remeha letzter Grund für Neuverbindung",
+        rcount="Remeha Neuverbindungen", appliance="Remeha Gerät",
+        cfg1="Konfigurator-Seite auf dem ESP selbst: http://<esp-ip>/remeha öffnen,",
+        cfg2='"Gerät scannen" drücken und auswählen. Auf false setzen, um Flash zu sparen.',
+        t_gtw22="Remeha mit eingebautem Bluetooth (GTW-22, z. B. Confida 40)",
+        t_gtwiot="Remeha über den GTW-IoT Home-Hub (z. B. Confida 10)",
+        s_gtw22="\n#     remeha_bt_key : die 6-stellige Nummer auf dem BLE-Aufkleber",
+        s_gtwiot="\n#  (kein remeha_bt_key nötig: der GTW-IoT koppelt ohne Passkey)",
+        io_gtw22="wir liefern den Passkey (die Aufklebernummer)",
+        a_gtw22="6-stellige Aufklebernummer", a_gtwiot="GTW-IoT: kein Pairing, kein Passkey",
+    ),
+}
+LANGS = list(TEXT)
+
 ROUTES = {
-    "gtw22": dict(
-        TITLE="Remeha met ingebouwde Bluetooth (GTW-22, bv. Confida 40)",
-        SECRET_LINE="\n#     remeha_bt_key : het 6-cijferige nummer van de BLE-sticker",
-        PREFIX="EHC-",
-        IO_CAP="keyboard_only   # wij leveren de passkey (het stickernummer)",
-        AUTH="  passkey: !secret remeha_bt_key      # 6-cijferig stickernummer\n",
-    ),
-    "gtwiot": dict(
-        TITLE="Remeha via de GTW-IoT home-hub (bv. Confida 10)",
-        SECRET_LINE="\n#  (geen remeha_bt_key nodig: de GTW-IoT koppelt zonder passkey)",
-        PREFIX="GTW-IOT",
-        IO_CAP="none",
-        AUTH="  requires_pairing: false             # GTW-IoT: geen pairing, geen passkey\n",
-    ),
+    "gtw22": dict(PREFIX="EHC-", IO="keyboard_only", AUTH="  passkey: !secret remeha_bt_key      # {A}\n"),
+    "gtwiot": dict(PREFIX="GTW-IOT", IO="none", AUTH="  requires_pairing: false             # {A}\n"),
 }
 
 
-def head_template(route):
-    t = HEAD
-    for k, v in ROUTES[route].items():
-        t = t.replace("{" + k + "}", v)
-    return t
+def head_template(route, lang="nl"):
+    T = TEXT[lang]
+    r = ROUTES[route]
+    io = r["IO"] + ("   # " + T["io_" + route] if "io_" + route in T else "")
+    t = (HEAD.replace("{TITLE}", T["t_" + route]).replace("{SECRET_LINE}", T["s_" + route])
+         .replace("{IO_CAP}", io).replace("{AUTH}", r["AUTH"].replace("{A}", T["a_" + route])))
+    for k, v in T.items():
+        t = t.replace("{T:" + k + "}", v)
+    return t.replace("{PREFIX}", r["PREFIX"])
 
 
 def parse_choices(txt):
@@ -161,7 +227,14 @@ def parse_choices(txt):
     return out
 
 
+def load_translations():
+    """Short English/German names (data/translations.json, from the Remeha OBD translations)."""
+    p = ROOT / "data" / "translations.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"names": {}, "enums": {}}
+
+
 def load_objects():
+    tr = load_translations()
     wb = openpyxl.load_workbook(ROOT / "data" / "Remeha_parametercodeboek.xlsx", read_only=True)
     ws = wb["Parameters"]
     hdr = next(ws.iter_rows(max_row=1, values_only=True))
@@ -190,9 +263,14 @@ def load_objects():
         }
         if note.startswith("ARRAY"):
             o["a"] = 1
+        tn = tr["names"].get(r[col["Interne naam (OBD)"]])
+        if tn:
+            o["N"] = [x or o["n"] for x in tn]  # [en, de]
         if o["t"] == "Enum":
             ch = parse_choices(r[col["Toegestane waarden (NL)"]]) or enums.get(r[col["Enum"]], [])
-            o["e"] = ch
+            te = tr["enums"].get(r[col["Enum"]], {})
+            # [raw, nl, en, de]
+            o["e"] = [[v, t] + [x or t for x in te.get(str(v), ["", ""])] for v, t in ch]
         if code:
             codes[code] = codes.get(code, 0) + 1
         objs[f"{idx}:{sub}"] = o
@@ -235,7 +313,7 @@ def main():
     data = {
         "objects": load_objects(),
         "presets": load_presets(),
-        "heads": {r: head_template(r) for r in ROUTES},
+        "heads": {r: {l: head_template(r, l) for l in LANGS} for r in ROUTES},
         "sample": json.loads((ROOT / "tools" / "sample_confida40.json").read_text()),
         "known": {"7887477": "Remeha Confida 40"},
     }

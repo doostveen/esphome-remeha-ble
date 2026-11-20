@@ -35,6 +35,7 @@
   --code-bg: #0a1115; --code-fg: #d7e6ec; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -88,130 +89,273 @@ td.chk input.warm { accent-color: var(--warm); }
 pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: .78rem; line-height: 1.45; padding: 14px; border-radius: 6px; overflow: auto; max-height: 70vh; white-space: pre; }
 .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--fg); }
 .privacy { border-left: 3px solid var(--ok); padding-left: 10px; }
+.topline { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.langs { display: flex; gap: 6px; }
+.langs .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+button.xp { border: 1px solid var(--line); background: var(--bg); color: var(--fg); padding: 0 6px; margin-right: 6px; font-size: .75rem; line-height: 1.4; border-radius: 4px; font-family: var(--font-mono); }
+button.xp:hover { border-color: var(--accent); }
+.cnt { color: var(--muted); font-size: .78rem; margin-left: 4px; }
+tr.sub td.code { padding-left: 34px; color: var(--muted); }
+tr.sub td.name { color: var(--muted); }
+tr.parent td { border-bottom-style: dashed; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <div class="wrap">
   <header>
-    <h1>Remeha BLE Configurator</h1>
-    <p class="lead">Kies uit wat jouw Remeha-toestel zelf meldt welke waarden je in Home Assistant wilt zien en welke instellingen je wilt kunnen wijzigen. Je krijgt een complete ESPHome-YAML voor de component <span class="badge">remeha_confida</span>.</p>
+    <div class="topline">
+      <h1>Remeha BLE Configurator</h1>
+      <div class="langs" role="group" aria-label="Taal / Language / Sprache">
+        <button type="button" class="chip" data-lang="nl">NL</button>
+        <button type="button" class="chip" data-lang="en">EN</button>
+        <button type="button" class="chip" data-lang="de">DE</button>
+      </div>
+    </div>
+    <p class="lead" data-i18n-html="lead"></p>
   </header>
 
   <div class="cols">
     <section class="panel" aria-labelledby="h-dump">
-      <h2 id="h-dump"><span class="n">1</span>Wat kan jouw toestel?</h2>
+      <h2 id="h-dump"><span class="n">1</span><span data-i18n="h1"></span></h2>
       <div class="on-device" hidden>
-        <p class="note">Druk op <b>Scan toestel</b>. De ESP leest dan zelf uit wat je Remeha-toestel kan (alleen lezen, ongeveer een halve minuut).</p>
+        <p class="note" data-i18n-html="scanNote"></p>
         <div class="row">
-          <button id="btn-scan" type="button">Scan toestel</button>
+          <button id="btn-scan" type="button" data-i18n="scanBtn"></button>
         </div>
       </div>
-      <p class="note file-only">Flash eerst <span class="badge">remeha-start.yaml</span> (of de GTW-IoT-versie), druk in Home Assistant op <b>Remeha discovery-dump</b> en wacht op <span class="badge">DUMP klaar</span> in de ESPHome-log. Plak daarna de hele log hieronder; alleen de DUMP-regels worden gebruikt.</p>
-      <textarea class="file-only" id="dump" placeholder="[09:21:14][I][remeha_confida:1093]: DUMP n1 0x502B:01 len=1474 @0 6200020000011130..." aria-label="ESPHome-log met DUMP-regels"></textarea>
+      <p class="note file-only" data-i18n-html="dumpNote"></p>
+      <textarea class="file-only" id="dump" placeholder="[09:21:14][I][remeha_confida:1093]: DUMP n1 0x502B:01 len=1474 @0 6200020000011130..." data-i18n-aria="dumpAria"></textarea>
       <div class="row file-only">
-        <button id="btn-parse" type="button">Dump inlezen</button>
-        <button id="btn-sample" type="button" class="ghost">Voorbeeld: Confida 40</button>
+        <button id="btn-parse" type="button" data-i18n="parseBtn"></button>
+        <button id="btn-sample" type="button" class="ghost" data-i18n="sampleBtn"></button>
       </div>
       <div id="status" class="status" aria-live="polite"></div>
-      <p class="note privacy file-only">De dump bevat serienummers. Deze pagina verwerkt alles in je eigen browser en verstuurt niets.</p>
+      <p class="note privacy file-only" data-i18n="privacy"></p>
     </section>
 
     <section class="panel" aria-labelledby="h-set">
-      <h2 id="h-set"><span class="n">2</span>Jouw opstelling</h2>
+      <h2 id="h-set"><span class="n">2</span><span data-i18n="h2"></span></h2>
       <div class="form">
-        <label>Verbinding
+        <label><span data-i18n="lRoute"></span>
           <select id="route">
-            <option value="gtw22">Ingebouwde Bluetooth (sticker, bv. Confida 40)</option>
-            <option value="gtwiot">GTW-IoT home-hub (bv. Confida 10)</option>
+            <option value="gtw22" data-i18n="oGtw22"></option>
+            <option value="gtwiot" data-i18n="oGtwiot"></option>
           </select>
         </label>
-        <label>Apparaatnaam (ESPHome)
+        <label><span data-i18n="lDev"></span>
           <input id="devname" type="text" value="remeha-ble" spellcheck="false">
         </label>
-        <label>Naam in Home Assistant
+        <label><span data-i18n="lFriendly"></span>
           <input id="friendly" type="text" value="Remeha">
         </label>
-        <label>MAC (optioneel)
+        <label><span data-i18n="lMac"></span>
           <input id="mac" type="text" value="00:00:00:00:00:00" spellcheck="false">
         </label>
-        <label>Versie component
+        <label><span data-i18n="lRef"></span>
           <select id="ref">
-            <option value="main">main (stabiel)</option>
-            <option value="dev">dev (nieuwste functies)</option>
+            <option value="main" data-i18n="oMain"></option>
+            <option value="dev" data-i18n="oDev"></option>
           </select>
         </label>
       </div>
-      <label class="check"><input id="expected" type="checkbox" checked> Waarschuwen als de YAML op een ander toestel draait</label>
-      <p class="note">Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.</p>
+      <label class="check"><input id="expected" type="checkbox" checked> <span data-i18n="expected"></span></label>
+      <p class="note" data-i18n-html="secretsNote"></p>
     </section>
   </div>
 
   <section class="panel" aria-labelledby="h-pick">
-    <h2 id="h-pick"><span class="n">3</span>Kies je waarden</h2>
+    <h2 id="h-pick"><span class="n">3</span><span data-i18n="h3"></span></h2>
     <div class="row">
-      <span class="note">Snel aanvinken:</span>
+      <span class="note" data-i18n="quick"></span>
       <span id="presets" class="row"></span>
-      <button id="btn-clear" type="button" class="chip">Alles wissen</button>
+      <button id="btn-clear" type="button" class="chip" data-i18n="clear"></button>
     </div>
     <div class="toolbar">
-      <label class="search">Zoeken
-        <input id="q" type="text" placeholder="code of naam, bv. HM001 of buitentemperatuur">
+      <label class="search"><span data-i18n="lSearch"></span>
+        <input id="q" type="text" data-i18n-ph="phSearch">
       </label>
-      <label>Groep
+      <label><span data-i18n="lGroup"></span>
         <select id="f-group"></select>
       </label>
-      <label>Soort
+      <label><span data-i18n="lKind"></span>
         <select id="f-kind">
-          <option value="">alle</option>
-          <option value="S">meetwaarden</option>
-          <option value="P">instellingen</option>
-          <option value="C">tellers</option>
+          <option value="" data-i18n="all"></option>
+          <option value="S" data-i18n="kS"></option>
+          <option value="P" data-i18n="kP"></option>
+          <option value="C" data-i18n="kC"></option>
         </select>
       </label>
-      <label>Tonen
+      <label><span data-i18n="lShow"></span>
         <select id="f-show">
-          <option value="all">alles</option>
-          <option value="sel">alleen gekozen</option>
-          <option value="lvl1">gebruikersniveau</option>
+          <option value="all" data-i18n="sAll"></option>
+          <option value="sel" data-i18n="sSel"></option>
+          <option value="lvl1" data-i18n="sLvl1"></option>
         </select>
       </label>
     </div>
     <div class="row">
       <span class="counts" id="counts"></span>
-      <span class="note"><span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel</span>
+      <span class="note" data-i18n-html="legend"></span>
     </div>
     <div class="tablebox">
       <table>
-        <thead><tr><th class="chk">Lezen</th><th class="chk">Instelbaar</th><th>Code</th><th>Naam</th><th>Soort</th><th>Bereik (toestel)</th><th>Niveau</th><th>Print</th></tr></thead>
+        <thead><tr><th class="chk" data-i18n="thRead"></th><th class="chk" data-i18n="thWrite"></th><th data-i18n="thCode"></th><th data-i18n="thName"></th><th data-i18n="thKind"></th><th data-i18n="thRange"></th><th data-i18n="thLevel"></th><th data-i18n="thNode"></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
   </section>
 
   <section class="panel" aria-labelledby="h-yaml">
-    <h2 id="h-yaml"><span class="n">4</span>Jouw YAML</h2>
+    <h2 id="h-yaml"><span class="n">4</span><span data-i18n="h4"></span></h2>
     <div class="row">
-      <button id="btn-copy" type="button">Kopieer YAML</button>
-      <button id="btn-dl" type="button" class="ghost">Download .yaml</button>
+      <button id="btn-copy" type="button" data-i18n="copy"></button>
+      <button id="btn-dl" type="button" class="ghost" data-i18n="download"></button>
       <span id="copied" class="status" aria-live="polite"></span>
     </div>
-    <p class="note">Zet de YAML in ESPHome (vervang de start-YAML) en flash opnieuw. Download werkt als je deze pagina lokaal opent; anders kopiëren.</p>
+    <p class="note" data-i18n="yamlNote"></p>
     <pre class="yaml" id="yaml"></pre>
   </section>
 </div>
 
 <script>
 const DATA = /*__DATA__*/null;
-const NODE_LABEL = { 1: "regelaar", 3: "display", 4: "uitbreiding", 5: "gateway" };
-const LEVEL_LABEL = { 1: "gebruiker", 2: "installateur", 3: "service", 4: "service", 5: "fabriek", 15: "fabriek" };
-const GROUPS = { A: "Toestel", C: "Groep / zone", D: "Warm water", H: "Warmtepomp", P: "Productie", B: "Buffer", E: "Energie", G: "Overig", S: "Zonne-energie", "": "Zonder code" };
+
+// ---- languages ----
+const I18N = {
+  nl: {
+    lead: 'Kies uit wat jouw Remeha-toestel zelf meldt welke waarden je in Home Assistant wilt zien en welke instellingen je wilt kunnen wijzigen. Je krijgt een complete ESPHome-YAML voor de component <span class="badge">remeha_confida</span>.',
+    h1: "Wat kan jouw toestel?", h2: "Jouw opstelling", h3: "Kies je waarden", h4: "Jouw YAML",
+    scanNote: "Druk op <b>Scan toestel</b>. De ESP leest dan zelf uit wat je Remeha-toestel kan (alleen lezen, ongeveer een halve minuut).",
+    scanBtn: "Scan toestel",
+    dumpNote: 'Flash eerst <span class="badge">remeha-start.yaml</span> (of de GTW-IoT-versie), druk in Home Assistant op <b>Remeha discovery-dump</b> en wacht op <span class="badge">DUMP klaar</span> in de ESPHome-log. Plak daarna de hele log hieronder; alleen de DUMP-regels worden gebruikt.',
+    dumpAria: "ESPHome-log met DUMP-regels", parseBtn: "Dump inlezen", sampleBtn: "Voorbeeld: Confida 40",
+    privacy: "De dump bevat serienummers. Deze pagina verwerkt alles in je eigen browser en verstuurt niets.",
+    lRoute: "Verbinding", oGtw22: "Ingebouwde Bluetooth (sticker, bv. Confida 40)", oGtwiot: "GTW-IoT home-hub (bv. Confida 10)",
+    lDev: "Apparaatnaam (ESPHome)", lFriendly: "Naam in Home Assistant", lMac: "MAC (optioneel)", lRef: "Versie component",
+    oMain: "main (stabiel)", oDev: "dev (nieuwste functies)", expected: "Waarschuwen als de YAML op een ander toestel draait",
+    secretsNote: 'Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.',
+    quick: "Snel aanvinken:", clear: "Alles wissen", lSearch: "Zoeken", phSearch: "code of naam, bv. HM001 of buitentemperatuur",
+    lGroup: "Groep", lKind: "Soort", lShow: "Tonen", all: "alle", kS: "meetwaarden", kP: "instellingen", kC: "tellers",
+    sAll: "alles", sSel: "alleen gekozen", sLvl1: "gebruikersniveau",
+    legend: '<span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel',
+    thRead: "Lezen", thWrite: "Instelbaar", thCode: "Code", thName: "Naam", thKind: "Soort", thRange: "Bereik (toestel)", thLevel: "Niveau", thNode: "Print",
+    copy: "Kopieer YAML", download: "Download .yaml",
+    yamlNote: "Zet de YAML in ESPHome (vervang de start-YAML) en flash opnieuw. Download werkt als je deze pagina lokaal opent; anders kopiëren.",
+    kindP: "instelling", kindS: "meetwaarde", kindC: "teller", read: "lezen", write: "instelbaar",
+    choices: "{0} keuzes", to: "{0} tot {1}", counts: "{0} gekozen · {1} instelbaar", nothing: "Niets gevonden. Pas het filter aan of lees eerst een dump in.",
+    example: "voorbeeld, niet jouw toestel", article: "artikelnummer {0}", appliance: "toestel", internal: "interne naam {0}",
+    objects: "{0} objecten om uit te kiezen", skipped: "({0} niet bruikbaar overgeslagen)",
+    noMenu: 'Geen menubeschrijving gevonden. Plak de log van na het drukken op <b>Remeha discovery-dump</b>, met de regels <span class="badge">DUMP n1 0x502B:..</span> erin.',
+    copied: "Gekopieerd", selected: "Geselecteerd: druk Ctrl+C (of Cmd+C)",
+    scanning: "Scannen...", progress: "{0} van {1}", waitLink: "wacht op de verbinding met het toestel",
+    aborted: "Scan afgebroken:", unknownErr: "onbekende fout", retry: "Probeer het opnieuw.",
+    noAnswer: "<b>Geen antwoord van de ESP.</b> Ververs de pagina of controleer de verbinding.",
+    notScanned: "Nog niet gescand. Druk op <b>Scan toestel</b>.",
+    errMem: "te weinig vrij geheugen op de ESP", errPage: "de pagina haalt de gegevens niet op",
+    yWrite: "# wijzigt een echte instelling", yNone: "# Nog niets gekozen: kies in stap 3 welke waarden je wilt zien.",
+    expand: "subindexen tonen", collapse: "subindexen verbergen", n: "{0}×",
+    zone: "groep {0}", act: "activiteit {0}", zoneAct: "groep {0}, activiteit {1}", producer: "producent {0}", nr: "nr {0}", subN: "sub {0}",
+    node: { 1: "regelaar", 3: "display", 4: "uitbreiding", 5: "gateway" }, nodeN: "node {0}",
+    level: { 1: "gebruiker", 2: "installateur", 3: "service", 4: "service", 5: "fabriek", 15: "fabriek" },
+    groups: { A: "Toestel", C: "Groep / zone", D: "Warm water", H: "Warmtepomp", P: "Productie", B: "Buffer", E: "Energie", G: "Overig", S: "Zonne-energie", "": "Zonder code" },
+    presets: { basis: "Basis", energie: "Energie", buitenunit: "Buitenunit", ruimte: "Ruimte", stooklijn: "Stooklijn" },
+  },
+  en: {
+    lead: 'Choose, from what your Remeha appliance reports itself, which values you want to see in Home Assistant and which settings you want to be able to change. You get a complete ESPHome YAML for the <span class="badge">remeha_confida</span> component.',
+    h1: "What can your appliance do?", h2: "Your setup", h3: "Choose your values", h4: "Your YAML",
+    scanNote: "Press <b>Scan appliance</b>. The ESP then reads what your Remeha appliance offers (read only, about half a minute).",
+    scanBtn: "Scan appliance",
+    dumpNote: 'First flash <span class="badge">remeha-start.yaml</span> (or the GTW-IoT version), press <b>Remeha discovery dump</b> in Home Assistant and wait for <span class="badge">DUMP klaar</span> in the ESPHome log. Then paste the whole log below; only the DUMP lines are used.',
+    dumpAria: "ESPHome log with DUMP lines", parseBtn: "Read dump", sampleBtn: "Example: Confida 40",
+    privacy: "The dump contains serial numbers. This page processes everything in your own browser and sends nothing.",
+    lRoute: "Connection", oGtw22: "Built-in Bluetooth (sticker, e.g. Confida 40)", oGtwiot: "GTW-IoT home hub (e.g. Confida 10)",
+    lDev: "Device name (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Component version",
+    oMain: "main (stable)", oDev: "dev (newest features)", expected: "Warn when the YAML runs on a different appliance",
+    secretsNote: 'Wi-Fi details and the sticker number come from your own <span class="badge">secrets.yaml</span>.',
+    quick: "Quick select:", clear: "Clear all", lSearch: "Search", phSearch: "code or name, e.g. HM001 or outside temperature",
+    lGroup: "Group", lKind: "Type", lShow: "Show", all: "all", kS: "measurements", kP: "settings", kC: "counters",
+    sAll: "everything", sSel: "selected only", sLvl1: "user level",
+    legend: '<span class="badge">read</span> sensor in Home Assistant · <span class="badge warm">adjustable</span> changes a real setting of the appliance',
+    thRead: "Read", thWrite: "Adjustable", thCode: "Code", thName: "Name", thKind: "Type", thRange: "Range (appliance)", thLevel: "Level", thNode: "Board",
+    copy: "Copy YAML", download: "Download .yaml",
+    yamlNote: "Put the YAML in ESPHome (replacing the start YAML) and flash again. Download works when you open this page locally; otherwise copy.",
+    kindP: "setting", kindS: "measurement", kindC: "counter", read: "read", write: "adjustable",
+    choices: "{0} choices", to: "{0} to {1}", counts: "{0} selected · {1} adjustable", nothing: "Nothing found. Change the filter or read a dump first.",
+    example: "example, not your appliance", article: "article number {0}", appliance: "appliance", internal: "internal name {0}",
+    objects: "{0} objects to choose from", skipped: "({0} unusable ones skipped)",
+    noMenu: 'No menu description found. Paste the log from after pressing <b>Remeha discovery dump</b>, including the <span class="badge">DUMP n1 0x502B:..</span> lines.',
+    copied: "Copied", selected: "Selected: press Ctrl+C (or Cmd+C)",
+    scanning: "Scanning...", progress: "{0} of {1}", waitLink: "waiting for the connection to the appliance",
+    aborted: "Scan aborted:", unknownErr: "unknown error", retry: "Please try again.",
+    noAnswer: "<b>No answer from the ESP.</b> Reload the page or check the connection.",
+    notScanned: "Not scanned yet. Press <b>Scan appliance</b>.",
+    errMem: "not enough free memory on the ESP", errPage: "the page is not fetching the data",
+    yWrite: "# changes a real setting", yNone: "# Nothing selected yet: choose in step 3 which values you want to see.",
+    expand: "show subindexes", collapse: "hide subindexes", n: "{0}×",
+    zone: "zone {0}", act: "activity {0}", zoneAct: "zone {0}, activity {1}", producer: "producer {0}", nr: "no. {0}", subN: "sub {0}",
+    node: { 1: "controller", 3: "display", 4: "extension", 5: "gateway" }, nodeN: "node {0}",
+    level: { 1: "user", 2: "installer", 3: "service", 4: "service", 5: "factory", 15: "factory" },
+    groups: { A: "Appliance", C: "Zone", D: "Hot water", H: "Heat pump", P: "Production", B: "Buffer", E: "Energy", G: "Other", S: "Solar", "": "No code" },
+    presets: { basis: "Basic", energie: "Energy", buitenunit: "Outdoor unit", ruimte: "Room", stooklijn: "Heating curve" },
+  },
+  de: {
+    lead: 'Wähle aus dem, was dein Remeha-Gerät selbst meldet, welche Werte du in Home Assistant sehen und welche Einstellungen du ändern möchtest. Du bekommst eine komplette ESPHome-YAML für die Komponente <span class="badge">remeha_confida</span>.',
+    h1: "Was kann dein Gerät?", h2: "Deine Konfiguration", h3: "Werte auswählen", h4: "Deine YAML",
+    scanNote: "Drücke <b>Gerät scannen</b>. Der ESP liest dann selbst aus, was dein Remeha-Gerät kann (nur lesen, etwa eine halbe Minute).",
+    scanBtn: "Gerät scannen",
+    dumpNote: 'Flashe zuerst <span class="badge">remeha-start.yaml</span> (oder die GTW-IoT-Version), drücke in Home Assistant <b>Remeha Discovery-Dump</b> und warte auf <span class="badge">DUMP klaar</span> im ESPHome-Log. Füge dann das ganze Log unten ein; nur die DUMP-Zeilen werden verwendet.',
+    dumpAria: "ESPHome-Log mit DUMP-Zeilen", parseBtn: "Dump einlesen", sampleBtn: "Beispiel: Confida 40",
+    privacy: "Der Dump enthält Seriennummern. Diese Seite verarbeitet alles in deinem eigenen Browser und sendet nichts.",
+    lRoute: "Verbindung", oGtw22: "Eingebautes Bluetooth (Aufkleber, z. B. Confida 40)", oGtwiot: "GTW-IoT Home-Hub (z. B. Confida 10)",
+    lDev: "Gerätename (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Version der Komponente",
+    oMain: "main (stabil)", oDev: "dev (neueste Funktionen)", expected: "Warnen, wenn die YAML auf einem anderen Gerät läuft",
+    secretsNote: 'WLAN-Daten und die Aufklebernummer kommen aus deiner eigenen <span class="badge">secrets.yaml</span>.',
+    quick: "Schnellauswahl:", clear: "Alles löschen", lSearch: "Suchen", phSearch: "Code oder Name, z. B. HM001 oder Außentemperatur",
+    lGroup: "Gruppe", lKind: "Art", lShow: "Anzeigen", all: "alle", kS: "Messwerte", kP: "Einstellungen", kC: "Zähler",
+    sAll: "alles", sSel: "nur ausgewählte", sLvl1: "Benutzerebene",
+    legend: '<span class="badge">lesen</span> Sensor in Home Assistant · <span class="badge warm">einstellbar</span> ändert eine echte Einstellung des Geräts',
+    thRead: "Lesen", thWrite: "Einstellbar", thCode: "Code", thName: "Name", thKind: "Art", thRange: "Bereich (Gerät)", thLevel: "Ebene", thNode: "Platine",
+    copy: "YAML kopieren", download: ".yaml herunterladen",
+    yamlNote: "Setze die YAML in ESPHome ein (statt der Start-YAML) und flashe erneut. Herunterladen funktioniert, wenn du diese Seite lokal öffnest; sonst kopieren.",
+    kindP: "Einstellung", kindS: "Messwert", kindC: "Zähler", read: "lesen", write: "einstellbar",
+    choices: "{0} Optionen", to: "{0} bis {1}", counts: "{0} ausgewählt · {1} einstellbar", nothing: "Nichts gefunden. Ändere den Filter oder lies zuerst einen Dump ein.",
+    example: "Beispiel, nicht dein Gerät", article: "Artikelnummer {0}", appliance: "Gerät", internal: "interner Name {0}",
+    objects: "{0} Objekte zur Auswahl", skipped: "({0} nicht verwendbare übersprungen)",
+    noMenu: 'Keine Menübeschreibung gefunden. Füge das Log nach dem Drücken von <b>Remeha Discovery-Dump</b> ein, mit den Zeilen <span class="badge">DUMP n1 0x502B:..</span>.',
+    copied: "Kopiert", selected: "Markiert: drücke Strg+C (oder Cmd+C)",
+    scanning: "Scannen...", progress: "{0} von {1}", waitLink: "warte auf die Verbindung zum Gerät",
+    aborted: "Scan abgebrochen:", unknownErr: "unbekannter Fehler", retry: "Bitte erneut versuchen.",
+    noAnswer: "<b>Keine Antwort vom ESP.</b> Lade die Seite neu oder prüfe die Verbindung.",
+    notScanned: "Noch nicht gescannt. Drücke <b>Gerät scannen</b>.",
+    errMem: "zu wenig freier Speicher auf dem ESP", errPage: "die Seite holt die Daten nicht ab",
+    yWrite: "# ändert eine echte Einstellung", yNone: "# Noch nichts ausgewählt: wähle in Schritt 3, welche Werte du sehen möchtest.",
+    expand: "Subindizes anzeigen", collapse: "Subindizes ausblenden", n: "{0}×",
+    zone: "Heizkreis {0}", act: "Aktivität {0}", zoneAct: "Heizkreis {0}, Aktivität {1}", producer: "Erzeuger {0}", nr: "Nr. {0}", subN: "Sub {0}",
+    node: { 1: "Regler", 3: "Display", 4: "Erweiterung", 5: "Gateway" }, nodeN: "Knoten {0}",
+    level: { 1: "Benutzer", 2: "Installateur", 3: "Service", 4: "Service", 5: "Werk", 15: "Werk" },
+    groups: { A: "Gerät", C: "Heizkreis", D: "Warmwasser", H: "Wärmepumpe", P: "Produktion", B: "Puffer", E: "Energie", G: "Sonstiges", S: "Solar", "": "Ohne Code" },
+    presets: { basis: "Basis", energie: "Energie", buitenunit: "Außeneinheit", ruimte: "Raum", stooklijn: "Heizkurve" },
+  },
+};
+const LANG_IDX = { nl: 1, en: 2, de: 3 };
+let LANG = (() => {
+  try { const v = localStorage.getItem("rbc-lang"); if (v && I18N[JSON.parse(v)]) return JSON.parse(v); } catch (e) {}
+  const n = (navigator.language || "").slice(0, 2).toLowerCase();
+  return I18N[n] ? n : "en";
+})();
+function t(k, ...a) { const v = I18N[LANG][k] ?? I18N.nl[k] ?? k; return typeof v === "string" ? v.replace(/\{(\d)\}/g, (_, i) => a[+i]) : v; }
+function nm(o) { return LANG === "nl" || !o.N ? o.n : (o.N[LANG === "en" ? 0 : 1] || o.n); }      // object name
+function et(e) { return e[LANG_IDX[LANG]] || e[1]; }                                                   // enum text
+function nodeLabel(n) { return t("node")[n] || t("nodeN", n); }
+
 const NUMERIC = { U8: "u8", I8: "i8", U16: "u16", I16: "i16", U32: "u32", I32: "i32" };
 const UNITS = { "°C": "°C", "%": "%", bar: "bar", kW: "kW", W: "W", kWh: "kWh", V: "V", A: "A", Hz: "Hz", Rpm: "rpm", "l/m": "L/min", Hours: "h", Min: "min", Sec: "s", Days: "d" };
-const PRESET_LABEL = { basis: "Basis", energie: "Energie", buitenunit: "Buitenunit", ruimte: "Ruimte", stooklijn: "Stooklijn" };
 
 let rows = [];            // {key,node,idx,sub,min,max,step,level,o}
+let groups = [];          // [{gk, rows:[...]}], consecutive rows with the same node + index
 let sel = {};             // key -> "r" | "w"
-let device = { article: 0, name: "", example: false };
+let device = { article: 0, name: "", example: false, unknown: 0 };
+const expanded = new Set();
 
 const $ = (id) => document.getElementById(id);
 const hex4 = (n) => n.toString(16).toUpperCase().padStart(4, "0");
@@ -233,7 +377,11 @@ function platformFor(o, mode) {
   if (isEnum(o)) return yesNo(o) ? "binary_sensor" : "text_sensor";
   return o.t === "VisibleString" ? "text_sensor" : "sensor";
 }
-function fmt(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(3)).replace(".", ","); }
+function fmt(v) {
+  const s = Number.isInteger(v) ? String(v) : String(+v.toFixed(3));
+  return LANG === "en" ? s : s.replace(".", ",");
+}
+const num = (v) => (Number.isInteger(v) ? String(v) : String(+v.toFixed(3)));  // YAML: always a dot
 // A 32-bit unsigned maximum (0xFFFFFFFE) arrives as a negative number.
 function fixMax(min, max) { return max < min && max < 0 ? max + 4294967296 : max; }
 // Some modules store a negative minimum of a 16/8-bit object without sign
@@ -247,11 +395,25 @@ function rangeText(r) {
   if (r.min === -1 && r.max === -1) return "";
   const o = r.o;
   if (isEnum(o)) {
-    const names = (o.e || []).filter(([v]) => v >= r.min && v <= r.max).map(([, t]) => t);
-    return names.length ? names.length + " keuzes" : r.min + " tot " + r.max;
+    const n = (o.e || []).filter(([v]) => v >= r.min && v <= r.max).length;
+    return n ? t("choices", n) : t("to", r.min, r.max);
   }
   const g = o.g || 1;
-  return fmt(r.min * g) + " tot " + fmt(r.max * g) + (o.u ? " " + (UNITS[o.u] || o.u) : "");
+  return t("to", fmt(r.min * g), fmt(r.max * g)) + (o.u ? " " + (UNITS[o.u] || o.u) : "");
+}
+// Label for one element of an array. Zone objects (0x34xx / 0x54xx) count per
+// zone; CP080/CP140 hold 6 activity setpoints per zone; energy counters
+// (0x51xx) count per producer (1 = heat pump; 2 presumably the back-up).
+function subLabel(r, count) {
+  if (!r.o.a) return t("subN", r.sub);
+  const hi = r.idx >> 8;
+  if (r.idx === 0x340C || r.idx === 0x3412) {
+    const z = Math.ceil(r.sub / 6), a = (r.sub - 1) % 6 + 1;
+    return count > 6 ? t("zoneAct", z, a) : t("act", a);
+  }
+  if (hi === 0x34 || hi === 0x54) return t("zone", r.sub);
+  if (hi === 0x51) return t("producer", r.sub);
+  return t("nr", r.sub);
 }
 
 // ---- dump parsing ----
@@ -286,11 +448,11 @@ function parseDump(text) {
     }
   }
   const art = get("1-2000-09");
-  const nm = get("1-3047-00");
+  const nmb = get("1-3047-00");
   return {
     recs,
     article: art && art.length >= 4 ? u32le(art, 0) : 0,
-    name: nm ? String.fromCharCode(...nm.filter((c) => c >= 32 && c < 127)).trim() : "",
+    name: nmb ? String.fromCharCode(...nmb.filter((c) => c >= 32 && c < 127)).trim() : "",
   };
 }
 
@@ -306,63 +468,102 @@ function setRecords(recs, dev) {
     if (!o || !readable(o)) { unknown++; continue; }
     rows.push({ key, node, idx, sub, min: fixMin(min, max), max: fixMax(fixMin(min, max), max), step, level, o });
   }
-  rows.sort((a, b) => (a.o.c ? 0 : 1) - (b.o.c ? 0 : 1) || (a.o.c || hex4(a.idx)).localeCompare(b.o.c || hex4(b.idx)) || a.node - b.node || a.sub - b.sub);
-  device = dev;
+  rows.sort((a, b) => (a.o.c ? 0 : 1) - (b.o.c ? 0 : 1) || (a.o.c || hex4(a.idx)).localeCompare(b.o.c || hex4(b.idx)) || a.node - b.node || a.idx - b.idx || a.sub - b.sub);
+  groups = [];
+  for (const r of rows) {
+    const gk = r.node + "-" + hex4(r.idx), last = groups[groups.length - 1];
+    if (last && last.gk === gk) last.rows.push(r); else groups.push({ gk, rows: [r] });
+  }
+  device = Object.assign({}, dev, { unknown });
   const valid = new Set(rows.map((r) => r.key));
   for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k];
   buildGroupFilter();
-  const known = DATA.known[String(dev.article)];
-  const who = dev.article ? (known ? known + " (" + dev.article + ")" : "artikelnummer " + dev.article) : "toestel";
-  $("status").innerHTML = (dev.example ? '<span class="badge example">voorbeeld, niet jouw toestel</span> ' : "") +
-    "<b>" + who + "</b>" + (dev.name ? " · interne naam " + dev.name : "") +
-    " · " + rows.length + " objecten om uit te kiezen" + (unknown ? " (" + unknown + " niet bruikbaar overgeslagen)" : "");
+  showDeviceStatus();
   render();
+}
+function showDeviceStatus() {
+  const dev = device;
+  const known = DATA.known[String(dev.article)];
+  const who = dev.article ? (known ? known + " (" + dev.article + ")" : t("article", dev.article)) : t("appliance");
+  $("status").innerHTML = (dev.example ? '<span class="badge example">' + t("example") + "</span> " : "") +
+    "<b>" + esc(who) + "</b>" + (dev.name ? " · " + t("internal", esc(dev.name)) : "") +
+    " · " + t("objects", groups.length) + (dev.unknown ? " " + t("skipped", dev.unknown) : "");
 }
 
 // ---- table ----
 function buildGroupFilter() {
+  const cur = $("f-group").value;
   const present = new Set(rows.map((r) => (r.o.c || "")[0] || ""));
-  const opts = ['<option value="">alle</option>'];
-  for (const g of Object.keys(GROUPS)) if (present.has(g)) opts.push('<option value="' + g + '">' + GROUPS[g] + "</option>");
+  const G = t("groups");
+  const opts = ['<option value="">' + t("all") + "</option>"];
+  for (const g of Object.keys(G)) if (present.has(g)) opts.push('<option value="' + g + '">' + G[g] + "</option>");
   $("f-group").innerHTML = opts.join("");
+  $("f-group").value = cur;
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function codeText(r) { return r.o.c || "0x" + hex4(r.idx); }
+function cells(r, extraName) {
+  const o = r.o;
+  return '<td class="name">' + (extraName || esc(nm(o))) + "</td><td>" + t({ P: "kindP", S: "kindS", C: "kindC" }[o.k]) +
+    '</td><td class="num">' + esc(rangeText(r)) + '</td><td class="num">' + esc(t("level")[r.level] || r.level) +
+    '</td><td class="num">' + esc(nodeLabel(r.node)) + "</td>";
+}
+function rowHtml(r, sub, count) {
+  const o = r.o, mode = sel[r.key] || "", w = writable(o), lbl = esc(codeText(r) + (sub ? " " + subLabel(r, count) : ""));
+  return '<tr class="' + (sub ? "sub " : "") + (mode ? "on-" + mode : "") + '"><td class="chk"><input type="checkbox" data-k="' + r.key + '" data-m="r"' +
+    (mode ? " checked" : "") + ' aria-label="' + lbl + " " + t("read") + '"></td><td class="chk">' +
+    (w ? '<input type="checkbox" class="warm" data-k="' + r.key + '" data-m="w"' + (mode === "w" ? " checked" : "") + ' aria-label="' + lbl + " " + t("write") + '">' : "") +
+    '</td><td class="code">' + (sub ? esc(subLabel(r, count)) : esc(codeText(r)) + (r.sub && o.a ? ":" + r.sub : "")) + "</td>" +
+    cells(r, sub ? esc(nm(o)) : null) + "</tr>";
+}
+// Parent row of an array: one checkbox for all its elements (checked, partly, none).
+function parentHtml(g) {
+  const rs = g.rows, r0 = rs[0], o = r0.o, open = expanded.has(g.gk);
+  const nR = rs.filter((r) => sel[r.key]).length, nW = rs.filter((r) => sel[r.key] === "w").length;
+  const w = rs.some((r) => writable(r.o));
+  const st = (n, tot) => (n === 0 ? "" : n === tot ? " checked" : ' data-ind="1"');
+  const ranges = new Set(rs.map(rangeText));
+  const r = Object.assign({}, r0, { level: Math.min(...rs.map((x) => x.level)) });
+  return '<tr class="parent ' + (nR ? (nW ? "on-w" : "on-r") : "") + '"><td class="chk"><input type="checkbox" data-g="' + g.gk + '" data-m="r"' + st(nR, rs.length) +
+    ' aria-label="' + esc(codeText(r0)) + " " + t("read") + '"></td><td class="chk">' +
+    (w ? '<input type="checkbox" class="warm" data-g="' + g.gk + '" data-m="w"' + st(nW, rs.filter((x) => writable(x.o)).length) + ' aria-label="' + esc(codeText(r0)) + " " + t("write") + '">' : "") +
+    '</td><td class="code"><button type="button" class="xp" data-x="' + g.gk + '" aria-expanded="' + open + '" title="' + t(open ? "collapse" : "expand") + '">' + (open ? "−" : "+") + "</button>" +
+    esc(codeText(r0)) + '<span class="cnt">' + t("n", rs.length) + "</span></td>" +
+    '<td class="name">' + esc(nm(o)) + "</td><td>" + t({ P: "kindP", S: "kindS", C: "kindC" }[o.k]) +
+    '</td><td class="num">' + esc(ranges.size === 1 ? rangeText(r0) : "") + '</td><td class="num">' + esc(t("level")[r.level] || r.level) +
+    '</td><td class="num">' + esc(nodeLabel(r0.node)) + "</td></tr>";
+}
 function render() {
   const q = $("q").value.trim().toLowerCase();
-  const g = $("f-group").value, kind = $("f-kind").value, show = $("f-show").value;
+  const gf = $("f-group").value, kind = $("f-kind").value, show = $("f-show").value;
   const html = [];
   let shown = 0;
-  for (const r of rows) {
-    const o = r.o, mode = sel[r.key] || "";
-    if (g && ((o.c || "")[0] || "") !== g) continue;
+  for (const g of groups) {
+    const r0 = g.rows[0], o = r0.o;
+    if (gf && ((o.c || "")[0] || "") !== gf) continue;
     if (kind && o.k !== kind) continue;
-    if (show === "sel" && !mode) continue;
-    if (show === "lvl1" && r.level > 1) continue;
-    if (q && !((o.c || "").toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r.idx).toLowerCase().includes(q))) continue;
+    if (show === "sel" && !g.rows.some((r) => sel[r.key])) continue;
+    if (show === "lvl1" && !g.rows.some((r) => r.level <= 1)) continue;
+    if (q && !((o.c || "").toLowerCase().includes(q) || nm(o).toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r0.idx).toLowerCase().includes(q))) continue;
     if (++shown > 800) break;
-    const w = writable(o);
-    const lbl = esc(o.c || o.n);
-    html.push('<tr class="' + (mode ? "on-" + mode : "") + '"><td class="chk"><input type="checkbox" data-k="' + r.key + '" data-m="r"' +
-      (mode ? " checked" : "") + ' aria-label="' + lbl + ' lezen"></td><td class="chk">' +
-      (w ? '<input type="checkbox" class="warm" data-k="' + r.key + '" data-m="w"' + (mode === "w" ? " checked" : "") + ' aria-label="' + lbl + ' instelbaar">' : "") +
-      "</td><td class=\"code\">" + esc(o.c || "0x" + hex4(r.idx)) + (r.sub && o.a ? ":" + r.sub : "") +
-      '</td><td class="name">' + esc(o.n) + "</td><td>" + ({ P: "instelling", S: "meetwaarde", C: "teller" }[o.k]) +
-      '</td><td class="num">' + esc(rangeText(r)) + '</td><td class="num">' + esc(LEVEL_LABEL[r.level] || r.level) +
-      '</td><td class="num">' + esc(NODE_LABEL[r.node] || "node " + r.node) + "</td></tr>");
+    if (g.rows.length === 1) { html.push(rowHtml(r0, false)); continue; }
+    html.push(parentHtml(g));
+    if (expanded.has(g.gk)) for (const r of g.rows) if (show !== "sel" || sel[r.key]) html.push(rowHtml(r, true, g.rows.length));
   }
-  $("tbody").innerHTML = html.join("") || '<tr><td colspan="8" class="note">Niets gevonden. Pas het filter aan of lees eerst een dump in.</td></tr>';
+  $("tbody").innerHTML = html.join("") || '<tr><td colspan="8" class="note">' + t("nothing") + "</td></tr>";
+  for (const cb of $("tbody").querySelectorAll("input[data-ind]")) cb.indeterminate = true;
   updateCounts();
   renderYaml();
 }
 function updateCounts() {
   const v = Object.values(sel);
-  $("counts").textContent = v.length + " gekozen · " + v.filter((m) => m === "w").length + " instelbaar";
+  $("counts").textContent = t("counts", v.length, v.filter((m) => m === "w").length);
 }
 
 // ---- presets ----
 function applyPreset(name) {
-  const groups = DATA.presets[name] || {};
-  for (const [plat, codes] of Object.entries(groups)) {
+  const pg = DATA.presets[name] || {};
+  for (const [plat, codes] of Object.entries(pg)) {
     for (const c of codes) {
       const r = rows.find((x) => x.o.c === c && x.node === 1) || rows.find((x) => x.o.c === c);
       if (!r) continue;
@@ -376,9 +577,19 @@ function applyPreset(name) {
 // ---- YAML ----
 function yq(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
 function decimals(g) { return g >= 1 ? 0 : Math.max(0, Math.min(4, Math.round(-Math.log10(g)))); }
+function enumOptions(o) {  // unique texts in the chosen language (select needs unique options)
+  const seen = new Set(), out = [];
+  for (const e of o.e || []) {
+    let s = et(e) || String(e[0]);
+    if (seen.has(s)) s += " (" + e[0] + ")";
+    seen.add(s);
+    out.push([e[0], s]);
+  }
+  return out;
+}
 function buildYaml() {
   const route = $("route").value;
-  let head = DATA.heads[route]
+  let head = DATA.heads[route][LANG]
     .replace("{DEVICE_NAME}", ($("devname").value || "remeha-ble").trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"))
     .replace("{FRIENDLY_NAME}", ($("friendly").value || "Remeha").replace(/"/g, "'"))
     .replace("{BLE_MAC}", ($("mac").value || "00:00:00:00:00:00").trim().toUpperCase())
@@ -388,23 +599,32 @@ function buildYaml() {
   const order = ["sensor", "text_sensor", "binary_sensor", "number", "select", "switch"];
   const byPlat = {};
   const names = {};
+  const counts = {};
+  for (const g of groups) for (const r of g.rows) counts[r.key] = g.rows.length;
   const chosen = rows.filter((r) => sel[r.key]);
   for (const r of chosen) {
     const o = r.o, mode = sel[r.key], plat = platformFor(o, mode);
     const useCode = o.c && !o.d;
     const defSub = o.a ? 1 : 0;
-    let name = o.n + (o.c ? " (" + o.c + ")" : "");
-    if (r.node !== 1) name = o.n + " (" + (o.c ? o.c + ", " : "") + (NODE_LABEL[r.node] || "node " + r.node) + ")";
-    if (o.a && r.sub !== 1) name = name.replace(/\)$/, ", " + r.sub + ")");
+    const parts = [];
+    if (o.c) parts.push(o.c);
+    if (r.node !== 1) parts.push(nodeLabel(r.node));
+    if (counts[r.key] > 1) parts.push(subLabel(r, counts[r.key]));
+    let name = nm(o) + (parts.length ? " (" + parts.join(", ") + ")" : "");
     const nk = plat + "|" + name;
     if (names[nk]) name += " " + (++names[nk]); else names[nk] = 1;
     const L = ["  - platform: remeha_confida"];
-    if (mode === "w") L[0] += "    # wijzigt een echte instelling";
+    if (mode === "w") L[0] += "    " + t("yWrite");
+    const texts = (plat === "select" || plat === "text_sensor") && o.e && o.e.length;
     if (useCode) {
       L.push("    code: " + o.c);
-      if (name !== o.n + " (" + o.c + ")") L.push("    name: " + yq(name));
+      if (LANG !== "nl" || name !== o.n + " (" + o.c + ")") L.push("    name: " + yq(name));
       if (r.node !== 1) L.push("    node: " + r.node);
       if (r.sub !== defSub) L.push("    subindex: " + r.sub);
+      if (texts && LANG !== "nl") {
+        L.push("    options:");
+        for (const [v, s] of enumOptions(o)) L.push("      " + v + ": " + yq(s));
+      }
     } else {
       L.push("    name: " + yq(name));
       if (r.node !== 1) L.push("    node: " + r.node);
@@ -418,14 +638,14 @@ function buildYaml() {
       }
       if (plat === "sensor") L.push("    accuracy_decimals: " + decimals(o.g || 1));
       if (plat === "number") {
-        const g = o.g || 1;
-        const lo = r.min === -1 && r.max === -1 ? 0 : r.min * g, hi = r.min === -1 && r.max === -1 ? 255 * g : r.max * g;
-        L.push("    min_value: " + fmt(lo).replace(",", "."), "    max_value: " + fmt(hi).replace(",", "."),
-               "    step: " + fmt((r.step || 1) * g).replace(",", "."), "    mode: box", "    entity_category: config");
+        const gn = o.g || 1;
+        const lo = r.min === -1 && r.max === -1 ? 0 : r.min * gn, hi = r.min === -1 && r.max === -1 ? 255 * gn : r.max * gn;
+        L.push("    min_value: " + num(lo), "    max_value: " + num(hi),
+               "    step: " + num((r.step || 1) * gn), "    mode: box", "    entity_category: config");
       }
-      if ((plat === "select" || plat === "text_sensor") && o.e && o.e.length) {
+      if (texts) {
         L.push("    options:");
-        for (const [v, t] of o.e) L.push("      " + v + ": " + yq(t));
+        for (const [v, s] of enumOptions(o)) L.push("      " + v + ": " + yq(s));
       }
     }
     (byPlat[plat] = byPlat[plat] || []).push(L.join("\n"));
@@ -435,26 +655,64 @@ function buildYaml() {
     if (!byPlat[p]) continue;
     body += "\n" + p + ":\n" + byPlat[p].join("\n") + "\n";
   }
-  if (!body) body = "\n# Nog niets gekozen: kies in stap 3 welke waarden je wilt zien.\n";
+  if (!body) body = "\n" + t("yNone") + "\n";
   return head + body;
 }
 function renderYaml() {
   const route = $("route").value;
-  const y = buildYaml();
-  $("yaml").textContent = y;
+  $("yaml").textContent = buildYaml();
   store("settings", { route, devname: $("devname").value, friendly: $("friendly").value, mac: $("mac").value, ref: $("ref").value, expected: $("expected").checked });
 }
 
+// ---- language switch ----
+function applyLang() {
+  document.documentElement.lang = LANG;
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);
+  for (const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = t(el.dataset.i18nPh);
+  for (const el of document.querySelectorAll("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
+  const P = t("presets");
+  $("presets").innerHTML = Object.keys(DATA.presets).map((p) => '<button type="button" class="chip" data-p="' + p + '">' + (P[p] || p) + "</button>").join("");
+}
+document.querySelector(".langs").addEventListener("click", (e) => {
+  const l = e.target.dataset.lang; if (!l || l === LANG) return;
+  LANG = l; store("lang", l);
+  applyLang(); buildGroupFilter();
+  if (rows.length || !ON_DEVICE) showDeviceStatus();
+  render();
+});
+
 // ---- events ----
+$("tbody").addEventListener("click", (e) => {
+  const x = e.target.closest("[data-x]"); if (!x) return;
+  const gk = x.dataset.x;
+  if (expanded.has(gk)) expanded.delete(gk); else expanded.add(gk);
+  render();
+});
 $("tbody").addEventListener("change", (e) => {
+  const m = e.target.dataset.m, on = e.target.checked;
+  if (!m) return;
+  if (e.target.dataset.g) {
+    // parent of an array: (un)tick all elements at once
+    const g = groups.find((x) => x.gk === e.target.dataset.g); if (!g) return;
+    for (const r of g.rows) {
+      if (m === "r") { if (on) { if (!sel[r.key]) sel[r.key] = "r"; } else delete sel[r.key]; }
+      else if (writable(r.o)) { if (on) sel[r.key] = "w"; else if (sel[r.key] === "w") sel[r.key] = "r"; }
+    }
+    store("sel", sel);
+    render();
+    return;
+  }
   const k = e.target.dataset.k; if (!k) return;
   // instelbaar implies lezen; unticking lezen also drops instelbaar
-  const tr = e.target.closest("tr"), m = e.target.dataset.m, on = e.target.checked;
   const v = m === "w" ? (on ? "w" : "r") : (on ? "r" : "");
   if (v) sel[k] = v; else delete sel[k];
+  store("sel", sel);
+  if (e.target.closest("tr").classList.contains("sub")) { render(); return; }  // parent state changes too
+  const tr = e.target.closest("tr");
   for (const cb of tr.querySelectorAll("input[data-m]")) cb.checked = cb.dataset.m === "r" ? !!v : v === "w";
   tr.className = v ? "on-" + v : "";
-  store("sel", sel);
   updateCounts();
   renderYaml();
 });
@@ -462,10 +720,7 @@ for (const id of ["q", "f-group", "f-kind", "f-show"]) $(id).addEventListener("i
 for (const id of ["route", "devname", "friendly", "mac", "ref", "expected"]) $(id).addEventListener("input", renderYaml);
 $("btn-parse").addEventListener("click", () => {
   const d = parseDump($("dump").value);
-  if (!d.recs.length) {
-    $("status").innerHTML = "<b>Geen menubeschrijving gevonden.</b> Plak de log van na het drukken op <b>Remeha discovery-dump</b>, met de regels <span class=\"badge\">DUMP n1 0x502B:..</span> erin.";
-    return;
-  }
+  if (!d.recs.length) { $("status").innerHTML = t("noMenu"); return; }
   sel = {};
   setRecords(d.recs, { article: d.article, name: d.name, example: false });
   store("dump", d);
@@ -479,11 +734,11 @@ $("btn-sample").addEventListener("click", () => {
 $("btn-clear").addEventListener("click", () => { sel = {}; store("sel", sel); render(); });
 $("btn-copy").addEventListener("click", async () => {
   const txt = $("yaml").textContent;
-  try { await navigator.clipboard.writeText(txt); $("copied").textContent = "Gekopieerd"; }
+  try { await navigator.clipboard.writeText(txt); $("copied").textContent = t("copied"); }
   catch (e) {
     const r = document.createRange(); r.selectNodeContents($("yaml"));
     const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-    $("copied").textContent = "Geselecteerd: druk Ctrl+C (of Cmd+C)";
+    $("copied").textContent = t("selected");
   }
   setTimeout(() => ($("copied").textContent = ""), 3500);
 });
@@ -506,6 +761,9 @@ function applyDeviceResult(j) {
   sel = {};
   for (const [k, v] of Object.entries(saved)) if (valid.has(k)) sel[k] = v;
   if (Object.keys(sel).length) render(); else applyPreset("basis");
+}
+function espMsg(m) {  // the ESP reports in Dutch; translate the known messages
+  return m === I18N.nl.errMem ? t("errMem") : m === I18N.nl.errPage ? t("errPage") : (m || t("unknownErr"));
 }
 // The ESP streams the scan: every poll returns the new menu blocks and frees the
 // ones the page already has (gen/from), so the ESP never holds the whole result.
@@ -533,7 +791,7 @@ async function pollScan(first) {
     }
     if (j.state === "error") {
       clearTimeout(pollTimer); pollTimer = null;
-      $("status").innerHTML = "<b>Scan afgebroken:</b> " + (j.msg || "onbekende fout") + ". Probeer het opnieuw.";
+      $("status").innerHTML = "<b>" + t("aborted") + "</b> " + esc(espMsg(j.msg)) + ". " + t("retry");
       $("btn-scan").disabled = false;
       return;
     }
@@ -542,27 +800,27 @@ async function pollScan(first) {
         try { await fetch("/remeha/scan", { cache: "no-store" }); } catch (e) {}
       }
       $("btn-scan").disabled = true;
-      $("status").innerHTML = "<b>Scannen...</b> " + (j.total ? j.progress + " van " + j.total : "wacht op de verbinding met het toestel");
+      $("status").innerHTML = "<b>" + t("scanning") + "</b> " + (j.total ? t("progress", j.progress, j.total) : t("waitLink"));
       pollTimer = setTimeout(() => pollScan(false), 400);
     } else if (first) {
       restoreDeviceScan();
     }
   } catch (e) {
-    $("status").innerHTML = "<b>Geen antwoord van de ESP.</b> Ververs de pagina of controleer de verbinding.";
+    $("status").innerHTML = t("noAnswer");
     $("btn-scan").disabled = false;
   }
 }
 function restoreDeviceScan() {
   const d = load("devscan", null);
   if (d && d.recs && d.recs.length) applyDeviceResult(d);
-  else $("status").innerHTML = "Nog niet gescand. Druk op <b>Scan toestel</b>.";
+  else $("status").innerHTML = t("notScanned");
 }
 if (ON_DEVICE) {
   for (const el of document.querySelectorAll(".file-only")) el.hidden = true;
   for (const el of document.querySelectorAll(".on-device")) el.hidden = false;
   $("btn-scan").addEventListener("click", async () => {
     $("btn-scan").disabled = true;
-    $("status").innerHTML = "<b>Scannen...</b>";
+    $("status").innerHTML = "<b>" + t("scanning") + "</b>";
     try { await fetch("/remeha/scan", { cache: "no-store" }); } catch (e) {}
     clearTimeout(pollTimer);
     pollTimer = setTimeout(() => pollScan(false), 500);
@@ -571,7 +829,7 @@ if (ON_DEVICE) {
 
 // ---- start ----
 (function init() {
-  $("presets").innerHTML = Object.keys(DATA.presets).map((p) => '<button type="button" class="chip" data-p="' + p + '">' + (PRESET_LABEL[p] || p) + "</button>").join("");
+  applyLang();
   $("presets").addEventListener("click", (e) => { const p = e.target.dataset.p; if (p) applyPreset(p); });
   const s = load("settings", null);
   if (s) { for (const k of ["route", "devname", "friendly", "mac", "ref"]) if (s[k] !== undefined) $(k).value = s[k]; $("expected").checked = s.expected !== false; }

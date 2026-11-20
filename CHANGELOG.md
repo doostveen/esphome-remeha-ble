@@ -55,6 +55,13 @@
   De scan wordt in stukjes naar de pagina gestuurd en daarna op de ESP weer vrijgegeven,
   zodat er maar een paar kB geheugen nodig is (een eerdere versie liep vol en herstartte).
   Het resultaat wordt in de browser bewaard.
+- **Configurator in drie talen** (Nederlands, Engels, Duits): knop rechtsboven. Ook de
+  objectnamen, keuzeteksten en de gemaakte YAML (entiteitnamen, keuzes, commentaar)
+  volgen de gekozen taal. De korte Engelse en Duitse namen komen uit de vertalingen van
+  Remeha zelf (`data/translations.json`). Kost ongeveer 70 kB extra flash.
+- **Arrays op één regel**: objecten met meerdere subindexen (per groep, activiteit of
+  producent) staan onder één regel met een uitklapknop. Het vinkje op die regel kiest
+  alle subindexen tegelijk.
 - **Start-YAML's** (`remeha-start.yaml`, `remeha-start-gtwiot.yaml`): eerste flash met
   basisset en dump-knop.
 
