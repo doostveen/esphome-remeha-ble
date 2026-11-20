@@ -118,7 +118,11 @@ class RemehaBle : public PollingComponent,
   // ever held in RAM (holding the whole result at once crashed small ESP32s).
   void request_scan();  // called from the HTTP task
   std::string scan_poll(int gen, uint16_t from);
-  std::string current_json() const;  // HTTP task: what this firmware reads/writes now  // HTTP task: status + chunks >= from (frees older ones of that gen)
+  std::string current_json() const;  // HTTP task: what this firmware reads/writes now
+  // Configurator "read" button: read one object once and return its raw bytes.
+  // probe_request() queues it (HTTP task), probe_poll() returns the result.
+  std::string probe_request(uint8_t node, uint16_t index, uint8_t sub);
+  std::string probe_poll();  // HTTP task: status + chunks >= from (frees older ones of that gen)
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -195,6 +199,14 @@ class RemehaBle : public PollingComponent,
   std::string scan_head_{"{\"state\":\"idle\""};
   std::vector<std::pair<uint16_t, std::string>> scan_chunks_;
   std::mutex scan_mtx_;
+  // one-off read for the configurator (see probe_request); params/json under scan_mtx_
+  std::atomic<bool> probe_req_{false};
+  uint8_t probe_node_{0}, probe_sub_{0};
+  uint16_t probe_index_{0}, probe_id_{0};
+  bool probe_inflight_{false};
+  uint32_t probe_expect_{0}, probe_ms_{0};
+  std::string probe_json_{"{\"state\":\"idle\",\"id\":0}"};
+  void probe_done_(bool ok, const uint8_t *d, size_t len, const char *err);
   void start_scan_();
   void scan_reset_();
   void scan_issue_next_();

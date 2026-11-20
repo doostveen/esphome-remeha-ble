@@ -77,6 +77,9 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
   Gerät hat.
 - Objekte mit mehreren Elementen (pro Heizkreis, pro Aktivität, pro Erzeuger) stehen in
   einer Zeile mit einem **+**, um die Elemente anzuzeigen (siehe *Zeilen mit einem +* unten).
+- Mit der Schaltfläche in der Spalte **Wert** liest du den aktuellen Wert dieses Objekts
+  einmal aus. So siehst du vor dem Ankreuzen, ob er auf deinem Gerät etwas Sinnvolles
+  liefert.
 - **Suchen und filtern** nach Code, Name, Gruppe, Art und Ebene.
 - **Mit der aktuellen Auswahl beginnen:** *Auswahl dieses ESP übernehmen* kreuzt an,
   was die Firmware jetzt ausliest; *YAML einlesen* übernimmt die

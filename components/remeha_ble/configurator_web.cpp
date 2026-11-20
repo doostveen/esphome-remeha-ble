@@ -21,7 +21,7 @@ bool RemehaConfigurator::canHandle(AsyncWebServerRequest *request) const {
   char buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(buf);
   return url == "/remeha" || url == "/remeha/" || url == "/remeha/scan" || url == "/remeha/data.json" ||
-         url == "/remeha/current.json";
+         url == "/remeha/current.json" || url == "/remeha/read";
 }
 
 void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
@@ -36,6 +36,25 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
   }
   if (url == "/remeha/current.json") {
     std::string j = hub_->current_json();
+    AsyncWebServerResponse *res = request->beginResponse(
+        200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());
+    res->addHeader("Cache-Control", "no-store");
+    request->send(res);
+    return;
+  }
+  if (url == "/remeha/read") {
+    // ?n=1&i=13313&s=1 starts a read; without parameters: the result so far
+    auto *pi = request->getParam("i");
+    std::string j;
+    if (pi != nullptr) {
+      auto *pn = request->getParam("n");
+      auto *ps = request->getParam("s");
+      j = hub_->probe_request(pn != nullptr ? (uint8_t) strtoul(pn->value().c_str(), nullptr, 10) : 1,
+                              (uint16_t) strtoul(pi->value().c_str(), nullptr, 0),
+                              ps != nullptr ? (uint8_t) strtoul(ps->value().c_str(), nullptr, 10) : 0);
+    } else {
+      j = hub_->probe_poll();
+    }
     AsyncWebServerResponse *res = request->beginResponse(
         200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());
     res->addHeader("Cache-Control", "no-store");

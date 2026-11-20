@@ -84,6 +84,9 @@ tr.on-w td { background: var(--warm-soft); }
 td.chk, th.chk { text-align: center; width: 1%; white-space: nowrap; }
 td.chk input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--accent); }
 td.chk input.warm { accent-color: var(--warm); }
+td.val { white-space: nowrap; }
+button.rd { border: 1px solid var(--line); background: var(--bg); color: var(--accent); padding: 0 8px; font-size: .78rem; line-height: 1.5; border-radius: 4px; font-weight: 500; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+button.rd:hover { border-color: var(--accent); }
 .counts { font-family: var(--font-mono); font-size: .85rem; }
 pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: .78rem; line-height: 1.45; padding: 14px; border-radius: 6px; overflow: auto; max-height: 70vh; white-space: pre; }
 .check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--fg); }
@@ -197,7 +200,7 @@ tr.parent td { border-bottom-style: dashed; }
     </div>
     <div class="tablebox">
       <table>
-        <thead><tr><th class="chk" data-i18n="thRead"></th><th class="chk" data-i18n="thWrite"></th><th data-i18n="thCode"></th><th data-i18n="thName"></th><th data-i18n="thKind"></th><th data-i18n="thRange"></th><th data-i18n="thLevel"></th><th data-i18n="thNode"></th></tr></thead>
+        <thead><tr><th class="chk" data-i18n="thRead"></th><th class="chk" data-i18n="thWrite"></th><th data-i18n="thCode"></th><th data-i18n="thName"></th><th data-i18n="thKind"></th><th data-i18n="thRange"></th><th data-i18n="thValue"></th><th data-i18n="thLevel"></th><th data-i18n="thNode"></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
@@ -265,6 +268,14 @@ const I18N = {
     scanFirst: "Scan eerst het toestel.",
     expectedNote: "Het artikelnummer van dit toestel komt in de YAML. Sluit je de ESP later aan op een ander type, dan meldt de log dat en zie je het bij de entiteit Remeha toestel.",
     extraTag: "buiten menu",
+    thValue: "Waarde",
+    readBtn: "lees",
+    readTitle: "Huidige waarde één keer uitlezen",
+    errTimeout: "geen antwoord",
+    errNoLink: "niet verbonden",
+    errNotExist: "bestaat niet",
+    errNoAccess: "geen toegang",
+    errOther: "fout {0}",
   },
   en: {
     lead: "Choose, from what your Remeha appliance reports itself, which values you want to see in Home Assistant and which settings you want to be able to change. You get a complete ESPHome YAML for this ESP.",
@@ -311,6 +322,14 @@ const I18N = {
     scanFirst: "Scan the appliance first.",
     expectedNote: "The article number of this appliance goes into the YAML. If you later connect the ESP to another type, the log says so and the Remeha appliance entity shows it.",
     extraTag: "not in menu",
+    thValue: "Value",
+    readBtn: "read",
+    readTitle: "Read the current value once",
+    errTimeout: "no answer",
+    errNoLink: "not connected",
+    errNotExist: "does not exist",
+    errNoAccess: "no access",
+    errOther: "error {0}",
   },
   de: {
     lead: "Wähle aus dem, was dein Remeha-Gerät selbst meldet, welche Werte du in Home Assistant sehen und welche Einstellungen du ändern möchtest. Du bekommst eine komplette ESPHome-YAML für diesen ESP.",
@@ -357,6 +376,14 @@ const I18N = {
     scanFirst: "Scanne zuerst das Gerät.",
     expectedNote: "Die Artikelnummer dieses Geräts kommt in die YAML. Schließt du den ESP später an einen anderen Typ an, meldet das Log das und die Entität Remeha Gerät zeigt es an.",
     extraTag: "nicht im Menü",
+    thValue: "Wert",
+    readBtn: "lesen",
+    readTitle: "Aktuellen Wert einmal auslesen",
+    errTimeout: "keine Antwort",
+    errNoLink: "nicht verbunden",
+    errNotExist: "existiert nicht",
+    errNoAccess: "kein Zugriff",
+    errOther: "Fehler {0}",
   },
 };
 const LANG_IDX = { nl: 1, en: 2, de: 3 };
@@ -494,10 +521,64 @@ function buildGroupFilter() {
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function codeText(r) { return r.o.c || "0x" + hex4(r.idx); }
+// ---- "read" button: read one object once via the ESP (/remeha/read) ----
+const probe = {};          // key -> text shown in the value column
+let probeChain = Promise.resolve();
+function valueCell(r) {
+  const v = probe[r.key];
+  return '<button type="button" class="rd" data-r="' + r.key + '" title="' + esc(t("readTitle")) + '">' + esc(v === undefined ? t("readBtn") : v) + "</button>";
+}
+function showProbe(key, text) {
+  probe[key] = text;
+  for (const b of document.querySelectorAll('[data-r="' + key + '"]')) b.textContent = text;
+}
+function hexBytes(h) { const out = []; for (let i = 0; i + 1 < h.length; i += 2) out.push(parseInt(h.substr(i, 2), 16)); return out; }
+function decodeValue(o, b) {
+  if (o.t === "VisibleString") return String.fromCharCode(...b.filter((c) => c >= 32 && c < 127)).trim() || "\u2013";
+  if (!b.length) return "\u2013";
+  const size = { U8: 1, I8: 1, U16: 2, I16: 2, U32: 4, I32: 4 }[o.t] || Math.min(b.length, 4);
+  let raw = 0;
+  for (let i = 0; i < size && i < b.length; i++) raw += b[i] * 2 ** (8 * i);
+  if (o.t === "I8" && raw >= 0x80) raw -= 0x100;
+  if (o.t === "I16" && raw >= 0x8000) raw -= 0x10000;
+  if (o.t === "I32" && raw >= 0x80000000) raw -= 0x100000000;
+  if (isEnum(o)) {
+    const e = (o.e || []).find(([v]) => v === raw);
+    return e ? et(e) : String(raw);
+  }
+  return fmt(raw * (o.g || 1)) + (o.u ? " " + (UNITS[o.u] || o.u) : "");
+}
+function probeError(j) {
+  if (j.err === "timeout") return t("errTimeout");
+  if (j.err === "no_link") return t("errNoLink");
+  const b = hexBytes(j.hex || ""), code = b.length >= 4 ? (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0 : 0;
+  if (code === 0x06020000 || code === 0x06090011) return t("errNotExist");
+  if (code === 0x06010000) return t("errNoAccess");
+  return t("errOther", "0x" + code.toString(16).toUpperCase().padStart(8, "0"));
+}
+function readValue(key) {
+  const r = rows.find((x) => x.key === key); if (!r) return;
+  showProbe(key, "\u2026");
+  probeChain = probeChain.then(async () => {
+    try {
+      const q = await (await fetch("/remeha/read?n=" + r.node + "&i=" + r.idx + "&s=" + r.sub, { cache: "no-store" })).json();
+      for (let k = 0; k < 50; k++) {
+        await new Promise((ok) => setTimeout(ok, 250));
+        const j = await (await fetch("/remeha/read?t=" + Date.now(), { cache: "no-store" })).json();
+        if (j.id !== q.id || j.state !== "done") continue;
+        showProbe(key, j.ok ? decodeValue(r.o, hexBytes(j.hex)) : probeError(j));
+        return;
+      }
+      showProbe(key, t("errTimeout"));
+    } catch (e) {
+      showProbe(key, t("errNoLink"));
+    }
+  });
+}
 function cells(r, extraName) {
   const o = r.o;
   return '<td class="name">' + (extraName || esc(nm(o))) + "</td><td>" + t({ P: "kindP", S: "kindS", C: "kindC" }[o.k]) +
-    '</td><td class="num">' + esc(r.extra ? t("extraTag") : rangeText(r)) + '</td><td class="num">' + esc(r.extra ? "" : t("level")[r.level] || r.level) +
+    '</td><td class="num">' + esc(r.extra ? t("extraTag") : rangeText(r)) + '</td><td class="val">' + valueCell(r) + '</td><td class="num">' + esc(r.extra ? "" : t("level")[r.level] || r.level) +
     '</td><td class="num">' + esc(nodeLabel(r.node)) + "</td>";
 }
 function rowHtml(r, sub, count) {
@@ -522,7 +603,7 @@ function parentHtml(g) {
     '</td><td class="code"><button type="button" class="xp" data-x="' + g.gk + '" aria-expanded="' + open + '" title="' + t(open ? "collapse" : "expand") + '">' + (open ? "−" : "+") + "</button>" +
     esc(codeText(r0)) + '<span class="cnt">' + t("n", rs.length) + "</span></td>" +
     '<td class="name">' + esc(nm(o)) + "</td><td>" + t({ P: "kindP", S: "kindS", C: "kindC" }[o.k]) +
-    '</td><td class="num">' + esc(ranges.size === 1 ? rangeText(r0) : "") + '</td><td class="num">' + esc(t("level")[r.level] || r.level) +
+    '</td><td class="num">' + esc(ranges.size === 1 ? rangeText(r0) : "") + '</td><td></td><td class="num">' + esc(t("level")[r.level] || r.level) +
     '</td><td class="num">' + esc(nodeLabel(r0.node)) + "</td></tr>";
 }
 function render() {
@@ -542,7 +623,7 @@ function render() {
     html.push(parentHtml(g));
     if (expanded.has(g.gk)) for (const r of g.rows) if (show !== "sel" || sel[r.key]) html.push(rowHtml(r, true, g.rows.length));
   }
-  $("tbody").innerHTML = html.join("") || '<tr><td colspan="8" class="note">' + t("nothing") + "</td></tr>";
+  $("tbody").innerHTML = html.join("") || '<tr><td colspan="9" class="note">' + t("nothing") + "</td></tr>";
   for (const cb of $("tbody").querySelectorAll("input[data-ind]")) cb.indeterminate = true;
   updateCounts();
   renderYaml();
@@ -679,6 +760,8 @@ document.querySelector(".langs").addEventListener("click", (e) => {
 
 // ---- events ----
 $("tbody").addEventListener("click", (e) => {
+  const rb = e.target.closest("[data-r]");
+  if (rb) { readValue(rb.dataset.r); return; }
   const x = e.target.closest("[data-x]"); if (!x) return;
   const gk = x.dataset.x;
   if (expanded.has(gk)) expanded.delete(gk); else expanded.add(gk);

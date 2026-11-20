@@ -2,6 +2,9 @@
 
 ## v2.1.0 (2026-11-20)
 
+- **Read a value from the configurator:** a button in the new *Value* column reads the
+  current value of one object once (`/remeha/read` on the ESP) and shows it with unit
+  or choice text, or why the appliance refused it.
 - The preset YAMLs (`presets/`) are gone: they were made for a heat pump and did not
   fit other appliances. The quick select buttons in the configurator stay; they only
   tick what the scanned appliance has.

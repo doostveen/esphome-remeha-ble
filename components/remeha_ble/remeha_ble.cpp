@@ -1024,6 +1024,10 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
+  if ((op == 0x01 || op == 0x02) && probe_inflight_ && end >= 11) {
+    uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
+    if (key == probe_expect_) probe_done_(op == 0x01, &m[11], end - 11, nullptr);
+  }
   if ((op == 0x01 || op == 0x02) && scan_left_ > 0 && end >= 11) {
     uint16_t sidx = (uint16_t) (m[8] << 8) | m[9];
     if (sidx == 0x502B || (m[7] == 1 && ((sidx == 0x2000 && m[10] == 9) || (sidx == 0x3047 && m[10] == 0))))
@@ -1324,6 +1328,42 @@ std::string RemehaBle::current_json() const {
   return j;
 }
 
+// ---- configurator "read" button ----
+std::string RemehaBle::probe_request(uint8_t node, uint16_t index, uint8_t sub) {
+  std::lock_guard<std::mutex> lock(scan_mtx_);
+  probe_node_ = node; probe_index_ = index; probe_sub_ = sub;
+  probe_id_++;
+  char buf[48];
+  snprintf(buf, sizeof(buf), "{\"state\":\"pending\",\"id\":%u}", (unsigned) probe_id_);
+  probe_json_ = buf;
+  probe_req_.store(true);
+  return probe_json_;
+}
+
+std::string RemehaBle::probe_poll() {
+  std::lock_guard<std::mutex> lock(scan_mtx_);
+  return probe_json_;
+}
+
+// Result as raw bytes (the page decodes them with the codebook); a refused read
+// carries the abort code in its first 4 bytes.
+void RemehaBle::probe_done_(bool ok, const uint8_t *d, size_t len, const char *err) {
+  probe_inflight_ = false;
+  if (len > 64) len = 64;
+  std::string j;
+  j.reserve(80 + len * 2);
+  std::lock_guard<std::mutex> lock(scan_mtx_);
+  if (probe_req_.load()) return;  // a newer request is waiting; that one answers
+  char buf[64];
+  snprintf(buf, sizeof(buf), "{\"state\":\"done\",\"id\":%u,\"ok\":%s,\"err\":\"%s\",\"hex\":\"",
+           (unsigned) probe_id_, ok ? "true" : "false", err != nullptr ? err : "");
+  j += buf;
+  static const char HEX[] = "0123456789abcdef";
+  for (size_t k = 0; k < len; k++) { j += HEX[d[k] >> 4]; j += HEX[d[k] & 15]; }
+  j += "\"}";
+  probe_json_.swap(j);
+}
+
 // ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
 // Reads: 0x2000:09 + 0x3047 (identification) and 0x502B:1..20 on node 1 (EHC
 // regelaar) and node 4 (SCB uitbreiding). One read at a time; every menu block is
@@ -1367,6 +1407,25 @@ std::string RemehaBle::scan_poll(int gen, uint16_t from) {
 }
 
 void RemehaBle::loop() {
+  // configurator "read" button: one read at a time, answered via probe_poll()
+  if (probe_req_.exchange(false)) {
+    uint8_t n, s;
+    uint16_t i;
+    {
+      std::lock_guard<std::mutex> lock(scan_mtx_);
+      n = probe_node_; i = probe_index_; s = probe_sub_;
+    }
+    if (st_ != ST_RUN) {
+      probe_done_(false, nullptr, 0, "no_link");
+    } else {
+      menu_q_.push_back(build_read_frame_(n, i, s));
+      probe_expect_ = ((uint32_t) n << 24) | ((uint32_t) i << 8) | s;
+      probe_ms_ = millis();
+      probe_inflight_ = true;
+      if (!tx_busy_) send_next_individual_();
+    }
+  }
+  if (probe_inflight_ && millis() - probe_ms_ > 10000) probe_done_(false, nullptr, 0, "timeout");
   if (scan_req_.exchange(false)) {
     if (scan_state_ == 2) {
       // already reading: start over (the page lost its data, e.g. after a reload)

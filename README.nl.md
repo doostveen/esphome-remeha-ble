@@ -73,6 +73,8 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
   Stooklijn. Ze zijn gemaakt op een warmtepomp en vinken alleen aan wat jouw toestel heeft.
 - Objecten met meerdere elementen (per groep, per activiteit, per producent) staan op
   één regel met een **+** om de elementen te tonen (zie *Regels met een +* hieronder).
+- Met de knop in de kolom **Waarde** lees je de huidige waarde van dat object één keer
+  uit. Zo zie je vóór het aanvinken of het op jouw toestel iets zinnigs geeft.
 - **Zoeken en filteren** op code, naam, groep, soort en niveau.
 - **Begin bij je huidige keuze:** *Keuze van deze ESP overnemen* vinkt aan wat de
   firmware nu uitleest; *YAML inlezen* neemt de remeha_ble-entiteiten over uit een

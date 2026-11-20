@@ -72,6 +72,8 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
   Heating curve. They were made on a heat pump and only tick what your appliance has.
 - Objects with several elements (per zone, per activity, per producer) are shown on one
   row with a **+** to show the elements (see *Rows with a +* below).
+- The button in the **Value** column reads the current value of that object once, so
+  you can see whether it means something on your appliance before you tick it.
 - **Search and filters** by code, name, group, type and level.
 - **Start from your current choice:** *Use the choice of this ESP* ticks what the
   firmware reads now; *Read a YAML* takes over the remeha_ble entities from a YAML
