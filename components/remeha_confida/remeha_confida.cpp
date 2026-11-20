@@ -1141,12 +1141,18 @@ void RemehaConfida::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len
     uint16_t index = r[2] | (r[3] << 8);
     int32_t mn = (int32_t) le32(r + 4), mx = (int32_t) le32(r + 8);
     uint8_t sub = r[12], step = r[13];
+    // some modules store a negative minimum of a 16/8-bit object without sign
+    // extension (e.g. 0x0000F63C for -2500): fix it when min would exceed max
+    if (mn > mx && mn >= 0x8000 && mn <= 0xFFFF) mn = (int16_t) mn;
+    else if (mn > mx && mn >= 0x80 && mn <= 0xFF) mn = (int8_t) mn;
+    // and a 32-bit unsigned maximum (0xFFFFFFFE) reads as negative
+    float mxf = (mx < mn && mx < 0) ? (float) (uint32_t) mx : (float) mx;
     if (mn == -1 && mx == -1) continue;
     for (auto &it : items_) {
       if (it.node != node || it.index != index || it.sub != sub) continue;
       if (it.number != nullptr) {
         float g = it.gain == 0.0f ? 1.0f : it.gain;
-        static_cast<RemehaNumber *>(it.number)->apply_device_limits(mn * g, mx * g, step > 0 ? step * g : NAN);
+        static_cast<RemehaNumber *>(it.number)->apply_device_limits(mn * g, mxf * g, step > 0 ? step * g : NAN);
       }
       if (it.select_ != nullptr) static_cast<RemehaSelect *>(it.select_)->set_device_range(mn, mx);
     }

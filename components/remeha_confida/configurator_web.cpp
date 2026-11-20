@@ -28,7 +28,7 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
   StringRef url = request->url_to(buf);
   if (url == "/remeha" || url == "/remeha/") {
     AsyncWebServerResponse *res =
-        request->beginResponse(200, "text/html", REMEHA_CONFIGURATOR_GZ, sizeof(REMEHA_CONFIGURATOR_GZ));
+        request->beginResponse(200, "text/html; charset=utf-8", REMEHA_CONFIGURATOR_GZ, sizeof(REMEHA_CONFIGURATOR_GZ));
     res->addHeader("Content-Encoding", "gzip");
     request->send(res);
     return;
@@ -43,7 +43,7 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
   if (f != nullptr) from = (uint16_t) strtoul(f->value().c_str(), nullptr, 10);
   std::string j = hub_->scan_poll(gen, from);
   AsyncWebServerResponse *res = request->beginResponse(
-      200, "application/json", reinterpret_cast<const uint8_t *>(j.data()), j.size());
+      200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());
   res->addHeader("Cache-Control", "no-store");
   request->send(res);  // synchronous, j stays valid
 }

@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Remeha BLE Configurator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -231,6 +232,15 @@ function platformFor(o, mode) {
   return o.t === "VisibleString" ? "text_sensor" : "sensor";
 }
 function fmt(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(3)).replace(".", ","); }
+// A 32-bit unsigned maximum (0xFFFFFFFE) arrives as a negative number.
+function fixMax(min, max) { return max < min && max < 0 ? max + 4294967296 : max; }
+// Some modules store a negative minimum of a 16/8-bit object without sign
+// extension (0x0000F63C for -2500); correct it when min would exceed max.
+function fixMin(min, max) {
+  if (min > max && min >= 0x8000 && min <= 0xFFFF) return min - 0x10000;
+  if (min > max && min >= 0x80 && min <= 0xFF) return min - 0x100;
+  return min;
+}
 function rangeText(r) {
   if (r.min === -1 && r.max === -1) return "";
   const o = r.o;
@@ -292,7 +302,7 @@ function setRecords(recs, dev) {
     seen.add(key);
     const o = lookup(idx, sub);
     if (!o || !readable(o)) { unknown++; continue; }
-    rows.push({ key, node, idx, sub, min, max, step, level, o });
+    rows.push({ key, node, idx, sub, min: fixMin(min, max), max: fixMax(fixMin(min, max), max), step, level, o });
   }
   rows.sort((a, b) => (a.o.c ? 0 : 1) - (b.o.c ? 0 : 1) || (a.o.c || hex4(a.idx)).localeCompare(b.o.c || hex4(b.idx)) || a.node - b.node || a.sub - b.sub);
   device = dev;
