@@ -1,0 +1,489 @@
+<title>Remeha BLE Configurator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: one working column; numbered steps follow the real flow (flash, dump, choose, flash again). */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --fg: #16232b;
+  --muted: #5b6b75;
+  --line: #d6dee3;
+  --accent: #0f6a8b;      /* water side of the heat pump */
+  --accent-soft: #e2f0f5;
+  --warm: #b4570f;        /* writable setting: changes the appliance */
+  --warm-soft: #fbeee2;
+  --ok: #2c7a4b;
+  --code-bg: #0f1a20;
+  --code-fg: #d7e6ec;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171c; --surface: #16222a; --fg: #e3ecf0; --muted: #93a6b0; --line: #2a3a44;
+    --accent: #4fb3d6; --accent-soft: #15333f; --warm: #f0a35e; --warm-soft: #3a2614; --ok: #6ccf93;
+    --code-bg: #0a1115; --code-fg: #d7e6ec; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171c; --surface: #16222a; --fg: #e3ecf0; --muted: #93a6b0; --line: #2a3a44;
+  --accent: #4fb3d6; --accent-soft: #15333f; --warm: #f0a35e; --warm-soft: #3a2614; --ok: #6ccf93;
+  --code-bg: #0a1115; --code-fg: #d7e6ec; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 6px; }
+h1 { font-family: var(--font-head); font-size: 1.9rem; line-height: 1.15; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 1.15rem; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+h2 .n { font-family: var(--font-mono); font-size: .85rem; color: var(--accent); font-weight: 500; }
+.lead { color: var(--muted); max-width: 70ch; margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: grid; gap: 4px; }
+input[type=text], select, textarea {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; text-transform: none; letter-spacing: 0;
+}
+textarea { font-family: var(--font-mono); font-size: .8rem; min-height: 120px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: inherit; font-weight: 500; border-radius: 6px; padding: 7px 13px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--surface);
+}
+button.ghost { background: transparent; color: var(--accent); }
+button.chip { border-color: var(--line); background: var(--bg); color: var(--fg); padding: 4px 11px; border-radius: 999px; font-size: .85rem; }
+button.chip:hover { border-color: var(--accent); }
+.status { font-size: .9rem; color: var(--muted); }
+.status b { color: var(--fg); font-weight: 600; }
+.note { font-size: .82rem; color: var(--muted); margin: 0; }
+.badge { display: inline-block; font-family: var(--font-mono); font-size: .72rem; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.badge.warm { background: var(--warm-soft); color: var(--warm); }
+.badge.example { background: var(--warm-soft); color: var(--warm); }
+.toolbar { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .toolbar .search { grid-column: 1 / -1; } }
+.tablebox { overflow: auto; max-height: 62vh; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .87rem; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--surface); font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 500; z-index: 1; }
+td.code { font-family: var(--font-mono); white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted); }
+td.name { min-width: 16ch; }
+tr.on-r td { background: var(--accent-soft); }
+tr.on-w td { background: var(--warm-soft); }
+td select { padding: 3px 5px; font-size: .82rem; min-width: 9ch; }
+.counts { font-family: var(--font-mono); font-size: .85rem; }
+pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-family: var(--font-mono); font-size: .78rem; line-height: 1.45; padding: 14px; border-radius: 6px; overflow: auto; max-height: 70vh; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--fg); }
+.privacy { border-left: 3px solid var(--ok); padding-left: 10px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Remeha BLE Configurator</h1>
+    <p class="lead">Kies uit wat jouw Remeha-toestel zelf meldt welke waarden je in Home Assistant wilt zien en welke instellingen je wilt kunnen wijzigen. Je krijgt een complete ESPHome-YAML voor de component <span class="badge">remeha_confida</span>.</p>
+  </header>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-dump">
+      <h2 id="h-dump"><span class="n">1</span>Wat kan jouw toestel?</h2>
+      <p class="note">Flash eerst <span class="badge">remeha-start.yaml</span> (of de GTW-IoT-versie), druk in Home Assistant op <b>Remeha discovery-dump</b> en wacht op <span class="badge">DUMP klaar</span> in de ESPHome-log. Plak daarna de hele log hieronder; alleen de DUMP-regels worden gebruikt.</p>
+      <textarea id="dump" placeholder="[09:21:14][I][remeha_confida:1093]: DUMP n1 0x502B:01 len=1474 @0 6200020000011130..." aria-label="ESPHome-log met DUMP-regels"></textarea>
+      <div class="row">
+        <button id="btn-parse" type="button">Dump inlezen</button>
+        <button id="btn-sample" type="button" class="ghost">Voorbeeld: Confida 40</button>
+      </div>
+      <div id="status" class="status" aria-live="polite"></div>
+      <p class="note privacy">De dump bevat serienummers. Deze pagina verwerkt alles in je eigen browser en verstuurt niets.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-set">
+      <h2 id="h-set"><span class="n">2</span>Jouw opstelling</h2>
+      <div class="form">
+        <label>Verbinding
+          <select id="route">
+            <option value="gtw22">Ingebouwde Bluetooth (sticker, bv. Confida 40)</option>
+            <option value="gtwiot">GTW-IoT home-hub (bv. Confida 10)</option>
+          </select>
+        </label>
+        <label>Apparaatnaam (ESPHome)
+          <input id="devname" type="text" value="remeha-ble" spellcheck="false">
+        </label>
+        <label>Naam in Home Assistant
+          <input id="friendly" type="text" value="Remeha">
+        </label>
+        <label>MAC (optioneel)
+          <input id="mac" type="text" value="00:00:00:00:00:00" spellcheck="false">
+        </label>
+        <label>Versie component
+          <select id="ref">
+            <option value="main">main (stabiel)</option>
+            <option value="dev">dev (nieuwste functies)</option>
+          </select>
+        </label>
+      </div>
+      <label class="check"><input id="expected" type="checkbox" checked> Waarschuwen als de YAML op een ander toestel draait</label>
+      <p class="note">Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.</p>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-pick">
+    <h2 id="h-pick"><span class="n">3</span>Kies je waarden</h2>
+    <div class="row">
+      <span class="note">Snel aanvinken:</span>
+      <span id="presets" class="row"></span>
+      <button id="btn-clear" type="button" class="chip">Alles wissen</button>
+    </div>
+    <div class="toolbar">
+      <label class="search">Zoeken
+        <input id="q" type="text" placeholder="code of naam, bv. HM001 of buitentemperatuur">
+      </label>
+      <label>Groep
+        <select id="f-group"></select>
+      </label>
+      <label>Soort
+        <select id="f-kind">
+          <option value="">alle</option>
+          <option value="S">meetwaarden</option>
+          <option value="P">instellingen</option>
+          <option value="C">tellers</option>
+        </select>
+      </label>
+      <label>Tonen
+        <select id="f-show">
+          <option value="all">alles</option>
+          <option value="sel">alleen gekozen</option>
+          <option value="lvl1">gebruikersniveau</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <span class="counts" id="counts"></span>
+      <span class="note"><span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel</span>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Keuze</th><th>Code</th><th>Naam</th><th>Soort</th><th>Bereik (toestel)</th><th>Niveau</th><th>Print</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-yaml">
+    <h2 id="h-yaml"><span class="n">4</span>Jouw YAML</h2>
+    <div class="row">
+      <button id="btn-copy" type="button">Kopieer YAML</button>
+      <button id="btn-dl" type="button" class="ghost">Download .yaml</button>
+      <span id="copied" class="status" aria-live="polite"></span>
+    </div>
+    <p class="note">Zet de YAML in ESPHome (vervang de start-YAML) en flash opnieuw. Download werkt als je deze pagina lokaal opent; anders kopiëren.</p>
+    <pre class="yaml" id="yaml"></pre>
+  </section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const NODE_LABEL = { 1: "regelaar", 3: "display", 4: "uitbreiding", 5: "gateway" };
+const LEVEL_LABEL = { 1: "gebruiker", 2: "installateur", 3: "service", 4: "service", 5: "fabriek", 15: "fabriek" };
+const GROUPS = { A: "Toestel", C: "Groep / zone", D: "Warm water", H: "Warmtepomp", P: "Productie", B: "Buffer", E: "Energie", G: "Overig", S: "Zonne-energie", "": "Zonder code" };
+const NUMERIC = { U8: "u8", I8: "i8", U16: "u16", I16: "i16", U32: "u32", I32: "i32" };
+const UNITS = { "°C": "°C", "%": "%", bar: "bar", kW: "kW", W: "W", kWh: "kWh", V: "V", A: "A", Hz: "Hz", Rpm: "rpm", "l/m": "L/min", Hours: "h", Min: "min", Sec: "s", Days: "d" };
+const PRESET_LABEL = { basis: "Basis", energie: "Energie", buitenunit: "Buitenunit", ruimte: "Ruimte", stooklijn: "Stooklijn" };
+
+let rows = [];            // {key,node,idx,sub,min,max,step,level,o}
+let sel = {};             // key -> "r" | "w"
+let device = { article: 0, name: "", example: false };
+
+const $ = (id) => document.getElementById(id);
+const hex4 = (n) => n.toString(16).toUpperCase().padStart(4, "0");
+const hex2 = (n) => n.toString(16).toUpperCase().padStart(2, "0");
+function store(k, v) { try { localStorage.setItem("rbc-" + k, JSON.stringify(v)); } catch (e) {} }
+function load(k, d) { try { const v = localStorage.getItem("rbc-" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+
+function lookup(idx, sub) {
+  let o = DATA.objects[hex4(idx) + ":" + hex2(sub)];
+  if (!o) { const a = DATA.objects[hex4(idx) + ":00"]; if (a && a.a) o = a; }
+  return o || null;
+}
+function isEnum(o) { return o.t === "Enum"; }
+function yesNo(o) { return isEnum(o) && o.e && o.e.length === 2 && o.e.every(([v]) => v === 0 || v === 1); }
+function readable(o) { return !!(NUMERIC[o.t] || isEnum(o) || o.t === "VisibleString"); }
+function writable(o) { return o.k === "P" && !!(NUMERIC[o.t] || isEnum(o)); }
+function platformFor(o, mode) {
+  if (mode === "w") return isEnum(o) ? (yesNo(o) ? "switch" : "select") : "number";
+  if (isEnum(o)) return yesNo(o) ? "binary_sensor" : "text_sensor";
+  return o.t === "VisibleString" ? "text_sensor" : "sensor";
+}
+function fmt(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(3)).replace(".", ","); }
+function rangeText(r) {
+  if (r.min === -1 && r.max === -1) return "";
+  const o = r.o;
+  if (isEnum(o)) {
+    const names = (o.e || []).filter(([v]) => v >= r.min && v <= r.max).map(([, t]) => t);
+    return names.length ? names.length + " keuzes" : r.min + " tot " + r.max;
+  }
+  const g = o.g || 1;
+  return fmt(r.min * g) + " tot " + fmt(r.max * g) + (o.u ? " " + (UNITS[o.u] || o.u) : "");
+}
+
+// ---- dump parsing ----
+function u32le(b, i) { return (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0; }
+function i32le(b, i) { return b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24); }
+function parseDump(text) {
+  const re = /DUMP n(\d+) 0x([0-9A-Fa-f]{4}):([0-9A-Fa-f]{2}) len=(\d+)(?: @(\d+))? ([0-9a-fA-F]+)/g;
+  const blobs = {};
+  let m;
+  while ((m = re.exec(text))) {
+    const k = m[1] + "-" + m[2].toUpperCase() + "-" + m[3].toUpperCase();
+    (blobs[k] = blobs[k] || {})[+(m[5] || 0)] = m[6];
+  }
+  const get = (k) => {
+    const d = blobs[k]; if (!d) return null;
+    const hex = Object.keys(d).map(Number).sort((a, b) => a - b).map((o) => d[o]).join("");
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  };
+  const recs = [];
+  const nodes = new Set(Object.keys(blobs).filter((k) => k.includes("-502B-")).map((k) => +k.split("-")[0]));
+  for (const node of nodes) {
+    for (let s = 1; s <= 32; s++) {
+      const b = get(node + "-502B-" + hex2(s));
+      if (!b || b.length < 4) continue;
+      const count = b[0] | (b[1] << 8);
+      for (let k = 0; k < count && 4 + 15 * (k + 1) <= b.length; k++) {
+        const r = 4 + 15 * k;
+        recs.push([node, b[r + 2] | (b[r + 3] << 8), b[r + 12], i32le(b, r + 4), i32le(b, r + 8), b[r + 13], b[r + 14]]);
+      }
+    }
+  }
+  const art = get("1-2000-09");
+  const nm = get("1-3047-00");
+  return {
+    recs,
+    article: art && art.length >= 4 ? u32le(art, 0) : 0,
+    name: nm ? String.fromCharCode(...nm.filter((c) => c >= 32 && c < 127)).trim() : "",
+  };
+}
+
+function setRecords(recs, dev) {
+  const seen = new Set();
+  rows = [];
+  let unknown = 0;
+  for (const [node, idx, sub, min, max, step, level] of recs) {
+    const key = node + "-" + hex4(idx) + "-" + sub;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const o = lookup(idx, sub);
+    if (!o || !readable(o)) { unknown++; continue; }
+    rows.push({ key, node, idx, sub, min, max, step, level, o });
+  }
+  rows.sort((a, b) => (a.o.c ? 0 : 1) - (b.o.c ? 0 : 1) || (a.o.c || hex4(a.idx)).localeCompare(b.o.c || hex4(b.idx)) || a.node - b.node || a.sub - b.sub);
+  device = dev;
+  const valid = new Set(rows.map((r) => r.key));
+  for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k];
+  buildGroupFilter();
+  const known = DATA.known[String(dev.article)];
+  const who = dev.article ? (known ? known + " (" + dev.article + ")" : "artikelnummer " + dev.article) : "toestel";
+  $("status").innerHTML = (dev.example ? '<span class="badge example">voorbeeld, niet jouw toestel</span> ' : "") +
+    "<b>" + who + "</b>" + (dev.name ? " · interne naam " + dev.name : "") +
+    " · " + rows.length + " objecten om uit te kiezen" + (unknown ? " (" + unknown + " niet bruikbaar overgeslagen)" : "");
+  render();
+}
+
+// ---- table ----
+function buildGroupFilter() {
+  const present = new Set(rows.map((r) => (r.o.c || "")[0] || ""));
+  const opts = ['<option value="">alle</option>'];
+  for (const g of Object.keys(GROUPS)) if (present.has(g)) opts.push('<option value="' + g + '">' + GROUPS[g] + "</option>");
+  $("f-group").innerHTML = opts.join("");
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const g = $("f-group").value, kind = $("f-kind").value, show = $("f-show").value;
+  const html = [];
+  let shown = 0;
+  for (const r of rows) {
+    const o = r.o, mode = sel[r.key] || "";
+    if (g && ((o.c || "")[0] || "") !== g) continue;
+    if (kind && o.k !== kind) continue;
+    if (show === "sel" && !mode) continue;
+    if (show === "lvl1" && r.level > 1) continue;
+    if (q && !((o.c || "").toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r.idx).toLowerCase().includes(q))) continue;
+    if (++shown > 800) break;
+    const w = writable(o);
+    html.push('<tr class="' + (mode ? "on-" + mode : "") + '"><td><select data-k="' + r.key + '" aria-label="Keuze voor ' + esc(o.c || o.n) + '">' +
+      '<option value=""' + (mode ? "" : " selected") + ">niet</option>" +
+      '<option value="r"' + (mode === "r" ? " selected" : "") + ">lezen</option>" +
+      (w ? '<option value="w"' + (mode === "w" ? " selected" : "") + ">instelbaar</option>" : "") +
+      "</select></td><td class=\"code\">" + esc(o.c || "0x" + hex4(r.idx)) + (r.sub && o.a ? ":" + r.sub : "") +
+      '</td><td class="name">' + esc(o.n) + "</td><td>" + ({ P: "instelling", S: "meetwaarde", C: "teller" }[o.k]) +
+      '</td><td class="num">' + esc(rangeText(r)) + '</td><td class="num">' + esc(LEVEL_LABEL[r.level] || r.level) +
+      '</td><td class="num">' + esc(NODE_LABEL[r.node] || "node " + r.node) + "</td></tr>");
+  }
+  $("tbody").innerHTML = html.join("") || '<tr><td colspan="7" class="note">Niets gevonden. Pas het filter aan of lees eerst een dump in.</td></tr>';
+  updateCounts();
+  renderYaml();
+}
+function updateCounts() {
+  const v = Object.values(sel);
+  $("counts").textContent = v.length + " gekozen · " + v.filter((m) => m === "w").length + " instelbaar";
+}
+
+// ---- presets ----
+function applyPreset(name) {
+  const groups = DATA.presets[name] || {};
+  for (const [plat, codes] of Object.entries(groups)) {
+    for (const c of codes) {
+      const r = rows.find((x) => x.o.c === c && x.node === 1) || rows.find((x) => x.o.c === c);
+      if (!r) continue;
+      sel[r.key] = (plat === "number" || plat === "select" || plat === "switch") && writable(r.o) ? "w" : "r";
+    }
+  }
+  store("sel", sel);
+  render();
+}
+
+// ---- YAML ----
+function yq(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
+function decimals(g) { return g >= 1 ? 0 : Math.max(0, Math.min(4, Math.round(-Math.log10(g)))); }
+function buildYaml() {
+  const route = $("route").value;
+  let head = DATA.heads[route]
+    .replace("{DEVICE_NAME}", ($("devname").value || "remeha-ble").trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+    .replace("{FRIENDLY_NAME}", ($("friendly").value || "Remeha").replace(/"/g, "'"))
+    .replace("{BLE_MAC}", ($("mac").value || "00:00:00:00:00:00").trim().toUpperCase())
+    .replace("{REF}", $("ref").value)
+    .replace("{EXPECTED}", $("expected").checked && device.article && !device.example
+      ? "  expected_article_number: " + device.article + "\n" : "");
+  const order = ["sensor", "text_sensor", "binary_sensor", "number", "select", "switch"];
+  const byPlat = {};
+  const names = {};
+  const chosen = rows.filter((r) => sel[r.key]);
+  for (const r of chosen) {
+    const o = r.o, mode = sel[r.key], plat = platformFor(o, mode);
+    const useCode = o.c && !o.d;
+    const defSub = o.a ? 1 : 0;
+    let name = o.n + (o.c ? " (" + o.c + ")" : "");
+    if (r.node !== 1) name = o.n + " (" + (o.c ? o.c + ", " : "") + (NODE_LABEL[r.node] || "node " + r.node) + ")";
+    if (o.a && r.sub !== 1) name = name.replace(/\)$/, ", " + r.sub + ")");
+    const nk = plat + "|" + name;
+    if (names[nk]) name += " " + (++names[nk]); else names[nk] = 1;
+    const L = ["  - platform: remeha_confida"];
+    if (mode === "w") L[0] += "    # wijzigt een echte instelling";
+    if (useCode) {
+      L.push("    code: " + o.c);
+      if (name !== o.n + " (" + o.c + ")") L.push("    name: " + yq(name));
+      if (r.node !== 1) L.push("    node: " + r.node);
+      if (r.sub !== defSub) L.push("    subindex: " + r.sub);
+    } else {
+      L.push("    name: " + yq(name));
+      if (r.node !== 1) L.push("    node: " + r.node);
+      L.push("    index: 0x" + hex4(r.idx));
+      if (r.sub) L.push("    subindex: " + r.sub);
+      L.push("    read: auto");
+      if (plat === "sensor" || plat === "number") {
+        L.push("    value_type: " + NUMERIC[o.t]);
+        if ((o.g || 1) !== 1) L.push("    gain: " + o.g);
+        if (o.u) L.push("    unit_of_measurement: " + yq(UNITS[o.u] || o.u));
+      }
+      if (plat === "sensor") L.push("    accuracy_decimals: " + decimals(o.g || 1));
+      if (plat === "number") {
+        const g = o.g || 1;
+        const lo = r.min === -1 && r.max === -1 ? 0 : r.min * g, hi = r.min === -1 && r.max === -1 ? 255 * g : r.max * g;
+        L.push("    min_value: " + fmt(lo).replace(",", "."), "    max_value: " + fmt(hi).replace(",", "."),
+               "    step: " + fmt((r.step || 1) * g).replace(",", "."), "    mode: box", "    entity_category: config");
+      }
+      if ((plat === "select" || plat === "text_sensor") && o.e && o.e.length) {
+        L.push("    options:");
+        for (const [v, t] of o.e) L.push("      " + v + ": " + yq(t));
+      }
+    }
+    (byPlat[plat] = byPlat[plat] || []).push(L.join("\n"));
+  }
+  let body = "";
+  for (const p of order) {
+    if (!byPlat[p]) continue;
+    body += "\n" + p + ":\n" + byPlat[p].join("\n") + "\n";
+  }
+  if (!body) body = "\n# Nog niets gekozen: kies in stap 3 welke waarden je wilt zien.\n";
+  return head + body;
+}
+function renderYaml() {
+  const route = $("route").value;
+  const y = buildYaml();
+  $("yaml").textContent = y;
+  store("settings", { route, devname: $("devname").value, friendly: $("friendly").value, mac: $("mac").value, ref: $("ref").value, expected: $("expected").checked });
+}
+
+// ---- events ----
+$("tbody").addEventListener("change", (e) => {
+  const k = e.target.dataset.k; if (!k) return;
+  if (e.target.value) sel[k] = e.target.value; else delete sel[k];
+  e.target.closest("tr").className = e.target.value ? "on-" + e.target.value : "";
+  store("sel", sel);
+  updateCounts();
+  renderYaml();
+});
+for (const id of ["q", "f-group", "f-kind", "f-show"]) $(id).addEventListener("input", render);
+for (const id of ["route", "devname", "friendly", "mac", "ref", "expected"]) $(id).addEventListener("input", renderYaml);
+$("btn-parse").addEventListener("click", () => {
+  const d = parseDump($("dump").value);
+  if (!d.recs.length) {
+    $("status").innerHTML = "<b>Geen menubeschrijving gevonden.</b> Plak de log van na het drukken op <b>Remeha discovery-dump</b>, met de regels <span class=\"badge\">DUMP n1 0x502B:..</span> erin.";
+    return;
+  }
+  sel = {};
+  setRecords(d.recs, { article: d.article, name: d.name, example: false });
+  store("dump", d);
+  applyPreset("basis");
+});
+$("btn-sample").addEventListener("click", () => {
+  sel = {};
+  setRecords(DATA.sample, { article: 7887477, name: "IDU2WH", example: true });
+  applyPreset("basis");
+});
+$("btn-clear").addEventListener("click", () => { sel = {}; store("sel", sel); render(); });
+$("btn-copy").addEventListener("click", async () => {
+  const txt = $("yaml").textContent;
+  try { await navigator.clipboard.writeText(txt); $("copied").textContent = "Gekopieerd"; }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents($("yaml"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    $("copied").textContent = "Geselecteerd: druk Ctrl+C (of Cmd+C)";
+  }
+  setTimeout(() => ($("copied").textContent = ""), 3500);
+});
+$("btn-dl").addEventListener("click", () => {
+  const blob = new Blob([$("yaml").textContent], { type: "text/yaml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (($("devname").value || "remeha-ble").trim() || "remeha-ble") + ".yaml";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+// ---- start ----
+(function init() {
+  $("presets").innerHTML = Object.keys(DATA.presets).map((p) => '<button type="button" class="chip" data-p="' + p + '">' + (PRESET_LABEL[p] || p) + "</button>").join("");
+  $("presets").addEventListener("click", (e) => { const p = e.target.dataset.p; if (p) applyPreset(p); });
+  const s = load("settings", null);
+  if (s) { for (const k of ["route", "devname", "friendly", "mac", "ref"]) if (s[k] !== undefined) $(k).value = s[k]; $("expected").checked = s.expected !== false; }
+  const d = load("dump", null);
+  const savedSel = load("sel", null);
+  if (d && d.recs && d.recs.length) setRecords(d.recs, { article: d.article, name: d.name, example: false });
+  else setRecords(DATA.sample, { article: 7887477, name: "IDU2WH", example: true });
+  if (savedSel && Object.keys(savedSel).length) { sel = savedSel; const valid = new Set(rows.map((r) => r.key)); for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k]; render(); }
+  else applyPreset("basis");
+})();
+</script>

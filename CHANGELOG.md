@@ -46,6 +46,12 @@
   die niet in de bulk-lijst zitten worden meteen in dezelfde ronde los gelezen; de
   menubeschrijving komt pas daarna.
 
+- **Configurator** (`configurator/index.html`): plak de discovery-dump, kies per object
+  lezen of instelbaar (of een groep in één klik) en kopieer een complete YAML. Werkt in de
+  browser, verstuurt niets.
+- **Start-YAML's** (`remeha-start.yaml`, `remeha-start-gtwiot.yaml`): eerste flash met
+  basisset en dump-knop.
+
 ### Let op bij updaten
 - In beide YAML's zijn zeven waarden van `sensor` naar `binary_sensor` verhuisd: HM007,
   HM030, HM008, HM009, AM015 en de vlaggen 0x502E:1 en 0x502E:7. In Home Assistant

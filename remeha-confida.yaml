@@ -117,7 +117,7 @@ remeha_confida:
 # --- Uitgelezen waarden (EHC-16)  (selectie van de meest nuttige objecten). ---
 # value_type: i16/u16/u8/u32/enum (of modbus-stijl u_word/s_word/u_dword/...).
 # enum-sensoren publiceren de ruwe numerieke code; de ruwe code vertaal je zelf (zie de parametertabel in de repo).
-# Zone-objecten (CM-codes) staan op subindex 1 = actieve zone (CIRCA).
+# Zone-objecten (CM-codes) staan op subindex 1 = de actieve zone.
 
 sensor:
   - platform: remeha_confida
@@ -538,7 +538,7 @@ number:
     icon: mdi:gauge-low
 
   # --- Zone-/stooklijnparameters (instelbaar). Deze staan WEL in de bulk-GetList, dus read: bulk
-  # (standaard) volstaat; de 0x34xx-zoneobjecten zitten op subindex 1 = de actieve zone (CIRCA),
+  # (standaard) volstaat; de 0x34xx-zoneobjecten zitten op subindex 1 = de de actieve zone,
   # PP018 is een scalar op subindex 0. min/max zijn UI-grenzen (de range zit niet in de OBD;
   # alleen de technische U8/U16-range is bekend). LET OP: dit zijn echte stooklijninstellingen -
   # wijzigen beinvloedt je verwarming. Wil je er een alleen-lezen van maken, zet 'm dan als sensor.

@@ -104,6 +104,25 @@ number:
 
 De uitgebreide manier hieronder (met `index:`, `value_type:` enzovoort) blijft werken.
 
+### De configurator: kies uit wat jouw toestel kan
+
+De makkelijkste route, zeker voor een ander toestel dan de Confida 40:
+
+1. **Flash de start-YAML**: [`remeha-start.yaml`](remeha-start.yaml) (ingebouwde Bluetooth
+   met sticker) of [`remeha-start-gtwiot.yaml`](remeha-start-gtwiot.yaml) (GTW-IoT). Die
+   verbindt, toont een basisset en heeft de knop **Remeha discovery-dump**.
+2. **Druk op die knop** in Home Assistant en wacht tot de ESPHome-log `DUMP klaar` meldt
+   (ongeveer een minuut).
+3. **Open de configurator** ([`configurator/index.html`](configurator/index.html), download
+   het bestand en open het in je browser) en plak de log. Je ziet alleen de objecten die
+   jouw toestel echt heeft, met de grenzen die het toestel zelf opgeeft.
+4. **Kies** per object `lezen` of `instelbaar`, of vink met één knop een groep aan
+   (Basis, Energie, Buitenunit, Ruimte, Stooklijn).
+5. **Kopieer de YAML**, zet die in ESPHome in plaats van de start-YAML en flash opnieuw.
+
+De dump bevat serienummers; de configurator verwerkt alles in je eigen browser en verstuurt
+niets.
+
 ### Presets: kant-en-klare sets
 
 In de map [`presets/`](presets/) staan sets entiteiten (alle met `code:`) die je in één
@@ -363,6 +382,10 @@ remeha-confida-gtwiot.yaml  ESPHome-config voor de GTW-IoT-route (zonder passkey
 components/remeha_confida/  de external component (C++/Python-driver), voor beide
 docs/readme.md              technische protocolreferentie
 presets/                    kant-en-klare sets entiteiten (basis, energie, buitenunit, ruimte, stooklijn)
+remeha-start.yaml           eerste flash met basisset en dump-knop (GTW-22)
+remeha-start-gtwiot.yaml    idem voor de GTW-IoT
+configurator/index.html     configurator: dump inlezen, kiezen, YAML maken (werkt offline)
+tools/                      scripts die codebook.json en de configurator bouwen
 data/                       codeboek: alle objecten, enums en foutcodes
 secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
 LICENSE                     MIT-licentie
