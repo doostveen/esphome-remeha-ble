@@ -68,6 +68,8 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
 - **Read** puts a value in Home Assistant as a sensor. **Adjustable** (orange) adds a
   control that changes a real setting of the appliance; it is only offered for settings
   that can be written.
+- **Quick select** buttons tick a group at once: Basic, Energy, Outdoor unit, Room,
+  Heating curve. They were made on a heat pump and only tick what your appliance has.
 - Objects with several elements (per zone, per activity, per producer) are shown on one
   row with a **+** to show the elements (see *Rows with a +* below).
 - **Search and filters** by code, name, group, type and level.

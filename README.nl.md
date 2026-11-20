@@ -69,6 +69,8 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
 - **Lezen** zet een waarde als sensor in Home Assistant. **Instelbaar** (oranje) voegt
   een bediening toe die een echte instelling van het toestel wijzigt; dat kan alleen bij
   instellingen die schrijfbaar zijn.
+- Met **Snel aanvinken** kies je een hele groep: Basis, Energie, Buitenunit, Ruimte,
+  Stooklijn. Ze zijn gemaakt op een warmtepomp en vinken alleen aan wat jouw toestel heeft.
 - Objecten met meerdere elementen (per groep, per activiteit, per producent) staan op
   één regel met een **+** om de elementen te tonen (zie *Regels met een +* hieronder).
 - **Zoeken en filteren** op code, naam, groep, soort en niveau.

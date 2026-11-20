@@ -72,6 +72,9 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
 - **Lesen** bringt einen Wert als Sensor in Home Assistant. **Einstellbar** (orange)
   fügt ein Bedienelement hinzu, das eine echte Einstellung des Geräts ändert; das geht
   nur bei schreibbaren Einstellungen.
+- Mit der **Schnellauswahl** wählst du eine ganze Gruppe: Basis, Energie, Außeneinheit,
+  Raum, Heizkurve. Sie wurden an einer Wärmepumpe erstellt und kreuzen nur an, was dein
+  Gerät hat.
 - Objekte mit mehreren Elementen (pro Heizkreis, pro Aktivität, pro Erzeuger) stehen in
   einer Zeile mit einem **+**, um die Elemente anzuzeigen (siehe *Zeilen mit einem +* unten).
 - **Suchen und filtern** nach Code, Name, Gruppe, Art und Ebene.

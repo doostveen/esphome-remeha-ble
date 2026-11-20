@@ -264,6 +264,20 @@ def load_objects():
     return objs
 
 
+# Groups for the quick select buttons in the configurator. Each button only ticks
+# the codes that the scanned appliance actually has.
+QUICK_SELECT = {
+    "basis": {"sensor": ["HM001", "HM002", "HM003", "AM016", "AM027", "AM101", "CM030", "AM019", "AM056",
+                         "HM160", "HM161", "HM031"],
+              "text_sensor": ["AM012", "AM014"],
+              "binary_sensor": ["HM007", "HM008", "HM009", "HM030", "AM015"]},
+    "energie": {"sensor": ["AC088", "AC098", "AC083", "PC000", "PC002", "PC003"]},
+    "buitenunit": {"sensor": ["HM185", "HM186", "HM098", "HM087", "HM094", "HM116", "HM115", "HM062", "HM129",
+                              "HM110", "HM123", "HC010", "HC011"]},
+    "ruimte": {"sensor": ["CM260", "CM190", "CM280"]},
+    "stooklijn": {"number": ["CP000", "CP010", "CP210", "CP220", "CP230", "CP240"], "select": ["CP320", "CP780"]},
+}
+
 # Start YAML: a few appliance-level values that every Remeha EHC appliance has,
 # so the first flash shows something; the configurator replaces them.
 START_ENTITIES = {"sensor": ["AM016", "AM019", "AM027"], "text_sensor": ["AM012"]}
@@ -282,6 +296,7 @@ def start_entries():
 def main():
     data = {
         "objects": load_objects(),
+        "presets": QUICK_SELECT,
         "heads": {l: head_template(l) for l in LANGS},
         "known": {"7887477": "Remeha Confida 40"},
     }

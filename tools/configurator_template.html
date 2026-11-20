@@ -164,6 +164,8 @@ tr.parent td { border-bottom-style: dashed; }
   <section class="panel" aria-labelledby="h-pick">
     <h2 id="h-pick"><span class="n">3</span><span data-i18n="h3"></span></h2>
     <div class="row">
+      <span class="note" data-i18n="quick"></span>
+      <span id="presets" class="row"></span>
       <button id="btn-clear" type="button" class="chip" data-i18n="clear"></button>
     </div>
     <div class="toolbar">
@@ -225,7 +227,8 @@ const I18N = {
     scanBtn: "Scan toestel",
     lDev: "Apparaatnaam (ESPHome)", lFriendly: "Naam in Home Assistant", lMac: "MAC (optioneel)", lRef: "Versie component",
     oMain: "main (stabiel)", oDev: "dev (nieuwste functies)", expected: "Waarschuwen als deze YAML op een ander type toestel draait",
-    secretsNote: 'Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.', clear: "Alles wissen", lSearch: "Zoeken", phSearch: "code of naam, bv. HM001 of buitentemperatuur",
+    secretsNote: 'Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.',
+    quick: "Snel aanvinken:", clear: "Alles wissen", lSearch: "Zoeken", phSearch: "code of naam, bv. HM001 of buitentemperatuur",
     lGroup: "Groep", lKind: "Soort", lShow: "Tonen", all: "alle", kS: "meetwaarden", kP: "instellingen", kC: "tellers",
     sAll: "alles", sSel: "alleen gekozen", sLvl1: "gebruikersniveau",
     legend: '<span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel',
@@ -247,6 +250,7 @@ const I18N = {
     node: { 1: "regelaar", 3: "display", 4: "uitbreiding", 5: "gateway" }, nodeN: "node {0}",
     level: { 1: "gebruiker", 2: "installateur", 3: "service", 4: "service", 5: "fabriek", 15: "fabriek" },
     groups: { A: "Toestel", C: "Groep / zone", D: "Warm water", H: "Warmtepomp", P: "Productie", B: "Buffer", E: "Energie", G: "Overig", S: "Zonne-energie", "": "Zonder code" },
+    presets: { basis: "Basis", energie: "Energie", buitenunit: "Buitenunit", ruimte: "Ruimte", stooklijn: "Stooklijn" },
     importIntro: "Al eerder een YAML gemaakt? Begin dan met je huidige keuze in plaats van alles opnieuw aan te vinken.",
     btnEsp: "Keuze van deze ESP overnemen",
     btnYaml: "YAML inlezen...",
@@ -269,7 +273,8 @@ const I18N = {
     scanBtn: "Scan appliance",
     lDev: "Device name (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Component version",
     oMain: "main (stable)", oDev: "dev (newest features)", expected: "Warn when this YAML runs on a different type of appliance",
-    secretsNote: 'Wi-Fi details and the sticker number come from your own <span class="badge">secrets.yaml</span>.', clear: "Clear all", lSearch: "Search", phSearch: "code or name, e.g. HM001 or outside temperature",
+    secretsNote: 'Wi-Fi details and the sticker number come from your own <span class="badge">secrets.yaml</span>.',
+    quick: "Quick select:", clear: "Clear all", lSearch: "Search", phSearch: "code or name, e.g. HM001 or outside temperature",
     lGroup: "Group", lKind: "Type", lShow: "Show", all: "all", kS: "measurements", kP: "settings", kC: "counters",
     sAll: "everything", sSel: "selected only", sLvl1: "user level",
     legend: '<span class="badge">read</span> sensor in Home Assistant · <span class="badge warm">adjustable</span> changes a real setting of the appliance',
@@ -291,6 +296,7 @@ const I18N = {
     node: { 1: "controller", 3: "display", 4: "extension", 5: "gateway" }, nodeN: "node {0}",
     level: { 1: "user", 2: "installer", 3: "service", 4: "service", 5: "factory", 15: "factory" },
     groups: { A: "Appliance", C: "Zone", D: "Hot water", H: "Heat pump", P: "Production", B: "Buffer", E: "Energy", G: "Other", S: "Solar", "": "No code" },
+    presets: { basis: "Basic", energie: "Energy", buitenunit: "Outdoor unit", ruimte: "Room", stooklijn: "Heating curve" },
     importIntro: "Made a YAML before? Start from your current choice instead of ticking everything again.",
     btnEsp: "Use the choice of this ESP",
     btnYaml: "Read a YAML...",
@@ -313,7 +319,8 @@ const I18N = {
     scanBtn: "Gerät scannen",
     lDev: "Gerätename (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Version der Komponente",
     oMain: "main (stabil)", oDev: "dev (neueste Funktionen)", expected: "Warnen, wenn diese YAML auf einem anderen Gerätetyp läuft",
-    secretsNote: 'WLAN-Daten und die Aufklebernummer kommen aus deiner eigenen <span class="badge">secrets.yaml</span>.', clear: "Alles löschen", lSearch: "Suchen", phSearch: "Code oder Name, z. B. HM001 oder Außentemperatur",
+    secretsNote: 'WLAN-Daten und die Aufklebernummer kommen aus deiner eigenen <span class="badge">secrets.yaml</span>.',
+    quick: "Schnellauswahl:", clear: "Alles löschen", lSearch: "Suchen", phSearch: "Code oder Name, z. B. HM001 oder Außentemperatur",
     lGroup: "Gruppe", lKind: "Art", lShow: "Anzeigen", all: "alle", kS: "Messwerte", kP: "Einstellungen", kC: "Zähler",
     sAll: "alles", sSel: "nur ausgewählte", sLvl1: "Benutzerebene",
     legend: '<span class="badge">lesen</span> Sensor in Home Assistant · <span class="badge warm">einstellbar</span> ändert eine echte Einstellung des Geräts',
@@ -335,6 +342,7 @@ const I18N = {
     node: { 1: "Regler", 3: "Display", 4: "Erweiterung", 5: "Gateway" }, nodeN: "Knoten {0}",
     level: { 1: "Benutzer", 2: "Installateur", 3: "Service", 4: "Service", 5: "Werk", 15: "Werk" },
     groups: { A: "Gerät", C: "Heizkreis", D: "Warmwasser", H: "Wärmepumpe", P: "Produktion", B: "Puffer", E: "Energie", G: "Sonstiges", S: "Solar", "": "Ohne Code" },
+    presets: { basis: "Basis", energie: "Energie", buitenunit: "Außeneinheit", ruimte: "Raum", stooklijn: "Heizkurve" },
     importIntro: "Schon eine YAML erstellt? Starte mit deiner aktuellen Auswahl, statt alles neu anzukreuzen.",
     btnEsp: "Auswahl dieses ESP übernehmen",
     btnYaml: "YAML einlesen...",
@@ -544,6 +552,20 @@ function updateCounts() {
   $("counts").textContent = t("counts", v.length, v.filter((m) => m === "w").length);
 }
 
+// ---- presets ----
+function applyPreset(name) {
+  const pg = DATA.presets[name] || {};
+  for (const [plat, codes] of Object.entries(pg)) {
+    for (const c of codes) {
+      const r = rows.find((x) => x.o.c === c && x.node === 1) || rows.find((x) => x.o.c === c);
+      if (!r) continue;
+      sel[r.key] = (plat === "number" || plat === "select" || plat === "switch") && writable(r.o) ? "w" : "r";
+    }
+  }
+  store("sel", sel);
+  render();
+}
+
 // ---- YAML ----
 function yq(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
 function decimals(g) { return g >= 1 ? 0 : Math.max(0, Math.min(4, Math.round(-Math.log10(g)))); }
@@ -643,6 +665,8 @@ function applyLang() {
   for (const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = t(el.dataset.i18nPh);
   for (const el of document.querySelectorAll("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
   for (const b of document.querySelectorAll("[data-lang]")) b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
+  const P = t("presets");
+  $("presets").innerHTML = Object.keys(DATA.presets).map((p) => '<button type="button" class="chip" data-p="' + p + '">' + (P[p] || p) + "</button>").join("");
 }
 document.querySelector(".langs").addEventListener("click", (e) => {
   const l = e.target.dataset.lang; if (!l || l === LANG) return;
@@ -716,7 +740,7 @@ async function applyDeviceResult(j) {
   sel = {};
   for (const [k, v] of Object.entries(saved)) if (valid.has(k)) sel[k] = v;
   if (Object.keys(sel).length) { render(); return; }
-  if (!(await takeFromEsp(true))) render();
+  if (!(await takeFromEsp(true))) applyPreset("basis");
 }
 
 // ---- start from the current choice ----
@@ -910,6 +934,7 @@ $("btn-scan").addEventListener("click", async () => {
 // ---- start ----
 (function init() {
   applyLang();
+  $("presets").addEventListener("click", (e) => { const p = e.target.dataset.p; if (p) applyPreset(p); });
   const s = load("settings", null);
   if (s) { for (const k of ["devname", "friendly", "mac", "ref"]) if (s[k] !== undefined) $(k).value = s[k]; $("expected").checked = s.expected !== false; }
   rows = [];
