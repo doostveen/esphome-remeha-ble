@@ -288,15 +288,16 @@ void RemehaConfida::dump_config() {
   ESP_LOGCONFIG(TAG, "Remeha Confida: items=%d", (int) items_.size());
   // Show only the last two digits: enough to spot a wrong/mangled secret
   // (e.g. a leading zero read as octal) without putting the PIN in the log.
-  if (conn_mode_ == 2)
+  if (conn_mode_ == 2) {
     ESP_LOGCONFIG(TAG, "  verbinding: zonder koppelen (GTW-IoT)");
-  else if (has_passkey_)
+  } else if (has_passkey_) {
     ESP_LOGCONFIG(TAG, "  verbinding: %s, passkey ****%02u (laatste 2 cijfers, controleer tegen de sticker)",
                   conn_mode_ == 0 ? "automatisch" : "koppelen", (unsigned) (passkey_ % 100));
-  else if (conn_mode_ == 1)
+  } else if (conn_mode_ == 1) {
     ESP_LOGW(TAG, "  GEEN passkey ingesteld - koppelen gaat mislukken");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "  verbinding: automatisch, geen passkey (werkt alleen met een GTW-IoT)");
+  }
 }
 
 void RemehaConfida::publish_reason_(const char *why) {
