@@ -68,8 +68,6 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
 - **Read** puts a value in Home Assistant as a sensor. **Adjustable** (orange) adds a
   control that changes a real setting of the appliance; it is only offered for settings
   that can be written.
-- **Quick select** buttons tick a group at once: Basic, Energy, Outdoor unit, Room,
-  Heating curve.
 - Objects with several elements (per zone, per activity, per producer) are shown on one
   row with a **+** to show the elements (see *Rows with a +* below).
 - **Search and filters** by code, name, group, type and level.
@@ -206,7 +204,6 @@ all objects, choice lists and error codes is in [`data/`](data/README.md).
 ```
 remeha-start.yaml           first flash: connects, basic set, configurator on
 components/remeha_ble/  the ESPHome external component
-presets/                    groups for the quick select buttons (also usable as packages)
 data/                       codebook: objects, choice lists, error codes, translations
 docs/readme.md              protocol description
 tools/                      scripts that build codebook.json and the configurator page

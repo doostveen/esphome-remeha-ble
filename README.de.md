@@ -72,8 +72,6 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
 - **Lesen** bringt einen Wert als Sensor in Home Assistant. **Einstellbar** (orange)
   fügt ein Bedienelement hinzu, das eine echte Einstellung des Geräts ändert; das geht
   nur bei schreibbaren Einstellungen.
-- Mit der **Schnellauswahl** wählst du eine ganze Gruppe: Basis, Energie, Außeneinheit,
-  Raum, Heizkurve.
 - Objekte mit mehreren Elementen (pro Heizkreis, pro Aktivität, pro Erzeuger) stehen in
   einer Zeile mit einem **+**, um die Elemente anzuzeigen (siehe *Zeilen mit einem +* unten).
 - **Suchen und filtern** nach Code, Name, Gruppe, Art und Ebene.
@@ -219,7 +217,6 @@ in [`data/`](data/README.md).
 ```
 remeha-start.yaml           erstes Flashen: verbindet, Grundauswahl, Konfigurator an
 components/remeha_ble/  die ESPHome External Component
-presets/                    Gruppen für die Schnellauswahl (auch als Package nutzbar)
 data/                       Codebuch: Objekte, Auswahllisten, Fehlercodes, Übersetzungen
 docs/readme.md              Beschreibung des Protokolls
 tools/                      Skripte, die codebook.json und die Konfigurator-Seite bauen

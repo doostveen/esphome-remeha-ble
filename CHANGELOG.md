@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1.0 (2026-11-20)
+
+- The presets (`presets/`) and the quick select buttons in the configurator are gone:
+  they were made for a heat pump and did not fit other appliances. After a scan the
+  configurator starts from the choice of the ESP, or from nothing.
+- The start YAML now only reads a few values every Remeha EHC appliance has (status,
+  flow temperature, water pressure, outdoor temperature).
+
 ## v2.0.0 (2026-11-20)
 
 ### Breaking: the component is now called `remeha_ble`

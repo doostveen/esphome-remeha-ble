@@ -3,7 +3,6 @@
 
 Bronnen:
   data/Remeha_parametercodeboek.xlsx    objecten, namen, datatypes, keuzeteksten
-  presets/*.yaml                        groepen voor de knoppen in de configurator
   tools/configurator_template.html      de pagina (met /*__DATA__*/ als plek voor de data)
   data/translations.json                korte Engelse/Duitse namen (uit de Remeha-vertalingen)
 
@@ -144,7 +143,7 @@ TEXT = {
         cfg2='druk op "Scan toestel" en kies wat je wilt zien. Zet op false om flash te sparen.',
         start1="START-YAML: eerste flash. Open daarna http://<ip-van-de-esp>/remeha, druk op",
         start2='"Scan toestel", kies wat je wilt zien en flash de YAML die je daar krijgt.',
-        basis="Basisset (preset 'basis'); vervang dit later door de uitvoer van de configurator",
+        basis="Een paar waarden om mee te beginnen; de configurator vervangt dit",
     ),
     "en": dict(
         title="Remeha via Bluetooth (built-in Bluetooth or GTW-IoT home hub)",
@@ -167,7 +166,7 @@ TEXT = {
         cfg2='press "Scan appliance" and pick what you want. Set to false to save flash.',
         start1="START YAML: first flash. Then open http://<esp-ip>/remeha, press",
         start2='"Scan appliance", pick what you want and flash the YAML you get there.',
-        basis="Basic set (preset 'basis'); replace this later with the configurator output",
+        basis="A few values to start with; the configurator replaces this",
     ),
     "de": dict(
         title="Remeha über Bluetooth (eingebautes Bluetooth oder GTW-IoT Home-Hub)",
@@ -190,7 +189,7 @@ TEXT = {
         cfg2='"Gerät scannen" drücken und auswählen. Auf false setzen, um Flash zu sparen.',
         start1="START-YAML: erstes Flashen. Danach http://<esp-ip>/remeha öffnen,",
         start2='"Gerät scannen" drücken, auswählen und die dort erzeugte YAML flashen.',
-        basis="Grundauswahl (Preset 'basis'); später durch die Ausgabe des Konfigurators ersetzen",
+        basis="Ein paar Werte für den Anfang; der Konfigurator ersetzt das",
     ),
 }
 LANGS = list(TEXT)
@@ -265,30 +264,16 @@ def load_objects():
     return objs
 
 
-def load_presets():
-    out = {}
-    for p in sorted((ROOT / "presets").glob("*.yaml")):
-        txt = p.read_text(encoding="utf-8")
-        groups = {}
-        cur = None
-        for line in txt.splitlines():
-            m = re.match(r"^([a-z_]+):\s*$", line)
-            if m:
-                cur = m.group(1)
-            m = re.match(r"^\s+code:\s*([A-Z0-9]+)", line)
-            if m and cur:
-                groups.setdefault(cur, []).append(m.group(1))
-        out[p.stem] = groups
-    return out
+# Start YAML: a few appliance-level values that every Remeha EHC appliance has,
+# so the first flash shows something; the configurator replaces them.
+START_ENTITIES = {"sensor": ["AM016", "AM019", "AM027"], "text_sensor": ["AM012"]}
 
 
-def preset_entries(groups):
+def start_entries():
     lines = []
-    for plat in ("sensor", "text_sensor", "binary_sensor", "number", "select"):
-        if plat not in groups:
-            continue
+    for plat, codes in START_ENTITIES.items():
         lines.append(f"\n{plat}:")
-        for c in groups[plat]:
+        for c in codes:
             lines.append("  - platform: remeha_ble")
             lines.append(f"    code: {c}")
     return "\n".join(lines) + "\n"
@@ -297,7 +282,6 @@ def preset_entries(groups):
 def main():
     data = {
         "objects": load_objects(),
-        "presets": load_presets(),
         "heads": {l: head_template(l) for l in LANGS},
         "known": {"7887477": "Remeha Confida 40"},
     }
@@ -324,7 +308,7 @@ def main():
          .replace("{REF}", "main")
          .replace("{EXPECTED}", ""))
     h = h.replace(T["made"], T["start1"] + "\n#  " + T["start2"])
-    body = "\n# --- " + T["basis"] + " ---" + preset_entries(data["presets"]["basis"])
+    body = "\n# --- " + T["basis"] + " ---" + start_entries()
     (ROOT / "remeha-start.yaml").write_text(h + body, encoding="utf-8")
     print("remeha-start.yaml: geschreven")
 

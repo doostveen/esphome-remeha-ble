@@ -69,8 +69,6 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
 - **Lezen** zet een waarde als sensor in Home Assistant. **Instelbaar** (oranje) voegt
   een bediening toe die een echte instelling van het toestel wijzigt; dat kan alleen bij
   instellingen die schrijfbaar zijn.
-- Met **Snel aanvinken** kies je een hele groep: Basis, Energie, Buitenunit, Ruimte,
-  Stooklijn.
 - Objecten met meerdere elementen (per groep, per activiteit, per producent) staan op
   één regel met een **+** om de elementen te tonen (zie *Regels met een +* hieronder).
 - **Zoeken en filteren** op code, naam, groep, soort en niveau.
@@ -209,7 +207,6 @@ objecten, keuzelijsten en foutcodes staat in [`data/`](data/README.md).
 ```
 remeha-start.yaml           eerste flash: verbindt, basisset, configurator aan
 components/remeha_ble/  de ESPHome external component
-presets/                    groepen voor de knoppen Snel aanvinken (ook als package te gebruiken)
 data/                       codeboek: objecten, keuzelijsten, foutcodes, vertalingen
 docs/readme.md              beschrijving van het protocol
 tools/                      scripts die codebook.json en de configurator-pagina bouwen

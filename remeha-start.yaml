@@ -93,47 +93,15 @@ remeha_ble:
   # press "Scan appliance" and pick what you want. Set to false to save flash.
   configurator: true
 
-# --- Basic set (preset 'basis'); replace this later with the configurator output ---
+# --- A few values to start with; the configurator replaces this ---
 sensor:
-  - platform: remeha_ble
-    code: HM001
-  - platform: remeha_ble
-    code: HM002
-  - platform: remeha_ble
-    code: HM003
   - platform: remeha_ble
     code: AM016
   - platform: remeha_ble
-    code: AM027
-  - platform: remeha_ble
-    code: AM101
-  - platform: remeha_ble
-    code: CM030
-  - platform: remeha_ble
     code: AM019
   - platform: remeha_ble
-    code: AM056
-  - platform: remeha_ble
-    code: HM160
-  - platform: remeha_ble
-    code: HM161
-  - platform: remeha_ble
-    code: HM031
+    code: AM027
 
 text_sensor:
   - platform: remeha_ble
     code: AM012
-  - platform: remeha_ble
-    code: AM014
-
-binary_sensor:
-  - platform: remeha_ble
-    code: HM007
-  - platform: remeha_ble
-    code: HM008
-  - platform: remeha_ble
-    code: HM009
-  - platform: remeha_ble
-    code: HM030
-  - platform: remeha_ble
-    code: AM015
