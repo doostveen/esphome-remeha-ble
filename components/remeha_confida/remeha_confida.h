@@ -12,6 +12,10 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <array>
+#include <atomic>
+#include <mutex>
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/ble_client/ble_client.h"
@@ -76,6 +80,7 @@ class RemehaConfida : public PollingComponent,
  public:
   void setup() override;
   void update() override;
+  void loop() override;  // only picks up a scan request from the configurator page
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
@@ -101,6 +106,12 @@ class RemehaConfida : public PollingComponent,
   // Appliance identification (article number 0x2000:09 + name 0x3047 on node 1).
   void set_appliance_sensor(text_sensor::TextSensor *t) { appliance_ts_ = t; }
   void add_expected_article(uint32_t a) { expected_articles_.push_back(a); }
+  // Configurator page on the ESP (optional, `configurator: true`): the web handler
+  // runs in the HTTP server task, so it only sets a flag and reads the JSON under
+  // a mutex; the scan itself runs in the main loop like every other BLE request.
+  void request_scan();  // called from the HTTP task
+  std::mutex &scan_mutex() { return scan_mtx_; }
+  const std::string &scan_json() const { return scan_json_; }  // read with scan_mutex() held
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -160,6 +171,19 @@ class RemehaConfida : public PollingComponent,
   uint8_t menu_left_{0};
   bool menu_done_{false};
   void start_menu_read_();
+  // configurator scan state (see request_scan)
+  std::atomic<bool> scan_req_{false};
+  bool scan_pending_{false};
+  uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done
+  uint16_t scan_left_{0}, scan_total_{0};
+  uint32_t scan_article_{0};
+  std::string scan_name_;
+  std::vector<std::array<int32_t, 7>> scan_recs_;
+  std::string scan_json_{"{\"state\":\"idle\"}"};
+  std::mutex scan_mtx_;
+  void start_scan_();
+  void update_scan_json_();
+  void handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub, const uint8_t *d, size_t len, bool ok);
   void start_poll_cycle_();
   void parse_menu_block_(uint8_t node, const uint8_t *d, size_t len);  // a response arrived while TX was busy: send the next queued read on TX done
   std::vector<uint32_t> dump_keys_;

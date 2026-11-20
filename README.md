@@ -110,18 +110,23 @@ De makkelijkste route, zeker voor een ander toestel dan de Confida 40:
 
 1. **Flash de start-YAML**: [`remeha-start.yaml`](remeha-start.yaml) (ingebouwde Bluetooth
    met sticker) of [`remeha-start-gtwiot.yaml`](remeha-start-gtwiot.yaml) (GTW-IoT). Die
-   verbindt, toont een basisset en heeft de knop **Remeha discovery-dump**.
-2. **Druk op die knop** in Home Assistant en wacht tot de ESPHome-log `DUMP klaar` meldt
-   (ongeveer een minuut).
-3. **Open de configurator** ([`configurator/index.html`](configurator/index.html), download
-   het bestand en open het in je browser) en plak de log. Je ziet alleen de objecten die
-   jouw toestel echt heeft, met de grenzen die het toestel zelf opgeeft.
-4. **Kies** per object `lezen` of `instelbaar`, of vink met één knop een groep aan
+   verbindt, toont een basisset en zet de configurator op de ESP aan.
+2. **Open `http://<ip-van-de-esp>/remeha`** in je browser (of klik in ESPHome op "Visit"
+   en zet `/remeha` achter het adres) en druk op **Scan toestel**. De ESP leest in een halve
+   minuut uit welke objecten jouw toestel heeft, met de grenzen die het toestel zelf opgeeft.
+3. **Kies** per object `lezen` of `instelbaar`, of vink met één knop een groep aan
    (Basis, Energie, Buitenunit, Ruimte, Stooklijn).
-5. **Kopieer de YAML**, zet die in ESPHome in plaats van de start-YAML en flash opnieuw.
+4. **Kopieer de YAML**, zet die in ESPHome in plaats van de start-YAML en klik op Install.
+   (De ESP kan zichzelf niet opnieuw flashen: ESPHome bouwt de firmware.)
 
-De dump bevat serienummers; de configurator verwerkt alles in je eigen browser en verstuurt
-niets.
+De configurator op de ESP staat aan met `configurator: true` onder `remeha_confida:` en
+heeft `web_server:` nodig. Hij kost ongeveer 70 kB flash; zet hem op `false` als je die
+ruimte nodig hebt. Werkt vanaf ESPHome 2026.10.
+
+Zonder configurator op de ESP kan het ook: druk op **Remeha discovery-dump**, wacht op
+`DUMP klaar` in de log en plak de log in de losse pagina
+[`configurator/index.html`](configurator/index.html) (downloaden en in je browser openen).
+De dump bevat serienummers; die pagina verwerkt alles in je eigen browser en verstuurt niets.
 
 ### Presets: kant-en-klare sets
 

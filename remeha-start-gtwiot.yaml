@@ -96,6 +96,9 @@ remeha_confida:
     name: "Remeha herverbindingen"
   appliance:
     name: "Remeha toestel"
+  # Configurator-pagina op de ESP zelf: open http://<ip-van-de-esp>/remeha,
+  # druk op "Scan toestel" en kies wat je wilt zien. Zet op false om flash te sparen.
+  configurator: true
 
 # --- Basisset (preset 'basis'); vervang dit later door de uitvoer van de configurator ---
 sensor:

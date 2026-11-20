@@ -19,6 +19,8 @@ from esphome.components import sensor as core_sensor, text_sensor as core_text_s
 from esphome.components import switch as core_switch
 from esphome.components import select as core_select
 from esphome.helpers import cpp_string_escape
+from esphome.components import web_server_base
+from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_TOTAL_INCREASING
 
 CODEOWNERS = ["@diy"]
@@ -33,6 +35,7 @@ RemehaConfida = remeha_ns.class_(
 RemehaNumber = remeha_ns.class_("RemehaNumber", number.Number, cg.Component)
 RemehaSwitch = remeha_ns.class_("RemehaSwitch", core_switch.Switch, cg.Component)
 RemehaSelect = remeha_ns.class_("RemehaSelect", core_select.Select, cg.Component)
+RemehaConfigurator = remeha_ns.class_("RemehaConfigurator", cg.Component)
 
 # Shared value-type map (used by sensor + number platforms). Both the native
 # tokens (u16/i16/...) and Modbus-style aliases (U_WORD/S_WORD/...) are accepted.
@@ -112,6 +115,26 @@ CONF_APPLIANCE = "appliance"
 # Optional: article number(s) this configuration is meant for; a warning is logged
 # when the connected appliance reports another one (e.g. a preset for one model).
 CONF_EXPECTED_ARTICLE = "expected_article_number"
+# Optional: configurator page on the ESP itself (http://<esp>/remeha). Needs web_server.
+CONF_CONFIGURATOR = "configurator"
+CONF_ENABLED = "enabled"
+
+_CONFIGURATOR_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(RemehaConfigurator),
+        cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(web_server_base.WebServerBase),
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+    }
+)
+
+
+def _configurator(value):
+    """`configurator: true` / `false`, or a mapping."""
+    if isinstance(value, dict):
+        return _CONFIGURATOR_SCHEMA(value)
+    if cv.boolean(value):
+        return _CONFIGURATOR_SCHEMA({})
+    return {CONF_ENABLED: False}
 
 
 def _passkey(value):
@@ -153,6 +176,7 @@ CONFIG_SCHEMA = (
                 icon="mdi:heat-pump-outline",
             ),
             cv.Optional(CONF_EXPECTED_ARTICLE): cv.ensure_list(cv.positive_int),
+            cv.Optional(CONF_CONFIGURATOR): _configurator,
             cv.Optional(CONF_RECONNECT_COUNT): core_sensor.sensor_schema(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -197,6 +221,12 @@ async def to_code(config):
         cg.add(var.set_appliance_sensor(at))
     for art in config.get(CONF_EXPECTED_ARTICLE, []):
         cg.add(var.add_expected_article(art))
+    cfgp = config.get(CONF_CONFIGURATOR)
+    if cfgp and cfgp.get(CONF_ENABLED):
+        cg.add_define("USE_REMEHA_CONFIGURATOR")
+        base = await cg.get_variable(cfgp[CONF_WEB_SERVER_BASE_ID])
+        page = cg.new_Pvariable(cfgp[CONF_ID], base, var)
+        await cg.register_component(page, cfgp)
     if CONF_RECONNECT_COUNT in config:
         rs = await core_sensor.new_sensor(config[CONF_RECONNECT_COUNT])
         cg.add(var.set_reconnect_sensor(rs))

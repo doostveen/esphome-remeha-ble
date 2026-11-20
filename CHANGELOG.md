@@ -49,6 +49,9 @@
 - **Configurator** (`configurator/index.html`): plak de discovery-dump, kies per object
   lezen of instelbaar (of een groep in één klik) en kopieer een complete YAML. Werkt in de
   browser, verstuurt niets.
+- **Configurator op de ESP** (`configurator: true`, met `web_server:`): open
+  `http://<esp>/remeha`, druk op Scan toestel, kies en kopieer de YAML. Geen log meer
+  kopiëren. Kost ongeveer 70 kB flash.
 - **Start-YAML's** (`remeha-start.yaml`, `remeha-start-gtwiot.yaml`): eerste flash met
   basisset en dump-knop.
 

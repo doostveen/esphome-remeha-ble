@@ -97,14 +97,20 @@ pre.yaml { margin: 0; background: var(--code-bg); color: var(--code-fg); font-fa
   <div class="cols">
     <section class="panel" aria-labelledby="h-dump">
       <h2 id="h-dump"><span class="n">1</span>Wat kan jouw toestel?</h2>
-      <p class="note">Flash eerst <span class="badge">remeha-start.yaml</span> (of de GTW-IoT-versie), druk in Home Assistant op <b>Remeha discovery-dump</b> en wacht op <span class="badge">DUMP klaar</span> in de ESPHome-log. Plak daarna de hele log hieronder; alleen de DUMP-regels worden gebruikt.</p>
-      <textarea id="dump" placeholder="[09:21:14][I][remeha_confida:1093]: DUMP n1 0x502B:01 len=1474 @0 6200020000011130..." aria-label="ESPHome-log met DUMP-regels"></textarea>
-      <div class="row">
+      <div class="on-device" hidden>
+        <p class="note">Druk op <b>Scan toestel</b>. De ESP leest dan zelf uit wat je Remeha-toestel kan (alleen lezen, ongeveer een halve minuut).</p>
+        <div class="row">
+          <button id="btn-scan" type="button">Scan toestel</button>
+        </div>
+      </div>
+      <p class="note file-only">Flash eerst <span class="badge">remeha-start.yaml</span> (of de GTW-IoT-versie), druk in Home Assistant op <b>Remeha discovery-dump</b> en wacht op <span class="badge">DUMP klaar</span> in de ESPHome-log. Plak daarna de hele log hieronder; alleen de DUMP-regels worden gebruikt.</p>
+      <textarea class="file-only" id="dump" placeholder="[09:21:14][I][remeha_confida:1093]: DUMP n1 0x502B:01 len=1474 @0 6200020000011130..." aria-label="ESPHome-log met DUMP-regels"></textarea>
+      <div class="row file-only">
         <button id="btn-parse" type="button">Dump inlezen</button>
         <button id="btn-sample" type="button" class="ghost">Voorbeeld: Confida 40</button>
       </div>
       <div id="status" class="status" aria-live="polite"></div>
-      <p class="note privacy">De dump bevat serienummers. Deze pagina verwerkt alles in je eigen browser en verstuurt niets.</p>
+      <p class="note privacy file-only">De dump bevat serienummers. Deze pagina verwerkt alles in je eigen browser en verstuurt niets.</p>
     </section>
 
     <section class="panel" aria-labelledby="h-set">
@@ -473,6 +479,51 @@ $("btn-dl").addEventListener("click", () => {
   document.body.appendChild(a); a.click(); a.remove();
 });
 
+// ---- configurator on the ESP itself (/remeha) ----
+const ON_DEVICE = !!DATA.onDevice;
+let pollTimer = null;
+function applyDeviceResult(j) {
+  if (j.route && !load("settings", null)) $("route").value = j.route;
+  setRecords(j.recs || [], { article: j.article || 0, name: j.name || "", example: false });
+  const saved = load("sel", null) || {};
+  const valid = new Set(rows.map((r) => r.key));
+  sel = {};
+  for (const [k, v] of Object.entries(saved)) if (valid.has(k)) sel[k] = v;
+  if (Object.keys(sel).length) render(); else applyPreset("basis");
+}
+async function pollScan(first) {
+  try {
+    const r = await fetch("/remeha/data.json" + (first ? "" : "?t=" + Date.now()), { cache: "no-store" });
+    const j = await r.json();
+    if (j.state === "done" && j.recs) {
+      clearTimeout(pollTimer); pollTimer = null;
+      $("btn-scan").disabled = false;
+      if (!first || !rows.length || device.example) applyDeviceResult(j);
+      return;
+    }
+    if (j.state === "waiting" || j.state === "scanning") {
+      $("status").innerHTML = "<b>Scannen...</b> " + (j.total ? j.progress + " van " + j.total : "wacht op de verbinding met het toestel");
+      pollTimer = setTimeout(() => pollScan(false), 1000);
+    } else if (first) {
+      $("status").innerHTML = "Nog niet gescand. Druk op <b>Scan toestel</b>.";
+    }
+  } catch (e) {
+    $("status").innerHTML = "<b>Geen antwoord van de ESP.</b> Ververs de pagina of controleer de verbinding.";
+    $("btn-scan").disabled = false;
+  }
+}
+if (ON_DEVICE) {
+  for (const el of document.querySelectorAll(".file-only")) el.hidden = true;
+  for (const el of document.querySelectorAll(".on-device")) el.hidden = false;
+  $("btn-scan").addEventListener("click", async () => {
+    $("btn-scan").disabled = true;
+    $("status").innerHTML = "<b>Scannen...</b>";
+    try { await fetch("/remeha/scan", { cache: "no-store" }); } catch (e) {}
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => pollScan(false), 800);
+  });
+}
+
 // ---- start ----
 (function init() {
   $("presets").innerHTML = Object.keys(DATA.presets).map((p) => '<button type="button" class="chip" data-p="' + p + '">' + (PRESET_LABEL[p] || p) + "</button>").join("");
@@ -481,7 +532,8 @@ $("btn-dl").addEventListener("click", () => {
   if (s) { for (const k of ["route", "devname", "friendly", "mac", "ref"]) if (s[k] !== undefined) $(k).value = s[k]; $("expected").checked = s.expected !== false; }
   const d = load("dump", null);
   const savedSel = load("sel", null);
-  if (d && d.recs && d.recs.length) setRecords(d.recs, { article: d.article, name: d.name, example: false });
+  if (ON_DEVICE) { rows = []; setRecords([], { article: 0, name: "", example: false }); pollScan(true); }
+  else if (d && d.recs && d.recs.length) setRecords(d.recs, { article: d.article, name: d.name, example: false });
   else setRecords(DATA.sample, { article: 7887477, name: "IDU2WH", example: true });
   if (savedSel && Object.keys(savedSel).length) { sel = savedSel; const valid = new Set(rows.map((r) => r.key)); for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k]; render(); }
   else applyPreset("basis");

@@ -52,6 +52,7 @@
 #include "remeha_confida.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
@@ -618,6 +619,7 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
       chain_next_ = false;
       menu_q_.clear(); menu_left_ = 0; id_left_ = 0;  // not finished: read again after reconnect
+      if (scan_left_ > 0) { scan_left_ = 0; scan_pending_ = true; scan_state_ = 1; update_scan_json_(); }
       if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
       dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
       break;
@@ -988,6 +990,11 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
+  if ((op == 0x01 || op == 0x02) && scan_left_ > 0 && end >= 11) {
+    uint16_t sidx = (uint16_t) (m[8] << 8) | m[9];
+    if (sidx == 0x502B || (m[7] == 1 && ((sidx == 0x2000 && m[10] == 9) || (sidx == 0x3047 && m[10] == 0))))
+      handle_scan_response_(m[7], sidx, m[10], &m[11], end - 11, op == 0x01);
+  }
   if ((op == 0x01 || op == 0x02) && id_left_ > 0 && end >= 11 && m[7] == 1 &&
       ((m[8] == 0x20 && m[9] == 0x00 && m[10] == 9) || (m[8] == 0x30 && m[9] == 0x47 && m[10] == 0))) {
     handle_identification_((uint16_t) (m[8] << 8) | m[9], &m[11], end - 11, op == 0x01);
@@ -1220,6 +1227,92 @@ void RemehaSelect::set_device_range(int32_t lo, int32_t hi) {
   if (hi < lo) return;
   range_known_ = true; dev_lo_ = lo; dev_hi_ = hi;
   ESP_LOGD(TAG, "select 0x%04X:%u: toestel staat keuzes %ld..%ld toe", index_, sub_, (long) lo, (long) hi);
+}
+
+// ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
+void RemehaConfida::request_scan() {
+  scan_req_.store(true);
+  std::lock_guard<std::mutex> lock(scan_mtx_);
+  scan_json_ = "{\"state\":\"waiting\",\"progress\":0,\"total\":0}";
+}
+
+void RemehaConfida::loop() {
+  if (scan_req_.exchange(false) && scan_left_ == 0) {
+    scan_pending_ = true;
+    scan_state_ = 1;
+    update_scan_json_();
+  }
+  // start once the link runs and the boot-time identification/menu reads are done
+  if (scan_pending_ && st_ == ST_RUN && menu_left_ == 0 && id_left_ == 0 && scan_left_ == 0) start_scan_();
+}
+
+void RemehaConfida::start_scan_() {
+  scan_pending_ = false;
+  scan_recs_.clear();
+  scan_article_ = 0;
+  scan_name_.clear();
+  menu_q_.push_back(build_read_frame_(1, 0x2000, 9));
+  menu_q_.push_back(build_read_frame_(1, 0x3047, 0));
+  scan_left_ = 2;
+  static const uint8_t NODES[] = {1, 4};  // regelaar (EHC) and uitbreidingsprint (SCB)
+  for (uint8_t n : NODES)
+    for (uint8_t s = 1; s <= 20; s++) { menu_q_.push_back(build_read_frame_(n, 0x502B, s)); scan_left_++; }
+  scan_total_ = scan_left_;
+  scan_state_ = 2;
+  ESP_LOGI(TAG, "configurator: toestel scannen (%u reads)", (unsigned) scan_total_);
+  update_scan_json_();
+  if (!tx_busy_) send_next_individual_();
+}
+
+void RemehaConfida::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub, const uint8_t *d, size_t len,
+                                          bool ok) {
+  if (ok && index == 0x2000 && len >= 4) scan_article_ = le32(d);
+  if (ok && index == 0x3047) {
+    for (size_t i = 0; i < len && d[i]; i++)
+      if (isalnum(d[i]) || d[i] == '-' || d[i] == ' ') scan_name_.push_back((char) d[i]);
+  }
+  if (ok && index == 0x502B && len >= 4) {
+    parse_menu_block_(node, d, len);  // also apply the limits to numbers/selects
+    size_t count = d[0] | (d[1] << 8);
+    for (size_t k = 0; k < count && 4 + 15 * (k + 1) <= len; k++) {
+      const uint8_t *r = d + 4 + 15 * k;
+      std::array<int32_t, 7> rec{node, r[2] | (r[3] << 8), r[12], (int32_t) le32(r + 4), (int32_t) le32(r + 8), r[13], r[14]};
+      bool dup = false;
+      for (auto &x : scan_recs_) if (x[0] == rec[0] && x[1] == rec[1] && x[2] == rec[2]) { dup = true; break; }
+      if (!dup) scan_recs_.push_back(rec);
+    }
+  }
+  if (scan_left_ > 0) scan_left_--;
+  if (scan_left_ == 0) {
+    scan_state_ = 3;
+    ESP_LOGI(TAG, "configurator: scan klaar, %u objecten", (unsigned) scan_recs_.size());
+  }
+  update_scan_json_();
+}
+
+void RemehaConfida::update_scan_json_() {
+  static const char *STATES[] = {"idle", "waiting", "scanning", "done"};
+  std::string j;
+  j.reserve(scan_state_ == 3 ? 40 + scan_recs_.size() * 30 : 160);
+  char buf[160];
+  snprintf(buf, sizeof(buf), "{\"state\":\"%s\",\"progress\":%u,\"total\":%u,\"route\":\"%s\",\"article\":%lu,\"name\":\"%s\"",
+           STATES[scan_state_ & 3], (unsigned) (scan_total_ - scan_left_), (unsigned) scan_total_,
+           requires_pairing_ ? "gtw22" : "gtwiot", (unsigned long) scan_article_, scan_name_.c_str());
+  j += buf;
+  if (scan_state_ == 3) {
+    j += ",\"recs\":[";
+    bool first = true;
+    for (auto &r : scan_recs_) {
+      snprintf(buf, sizeof(buf), "%s[%ld,%ld,%ld,%ld,%ld,%ld,%ld]", first ? "" : ",", (long) r[0], (long) r[1], (long) r[2],
+               (long) r[3], (long) r[4], (long) r[5], (long) r[6]);
+      j += buf;
+      first = false;
+    }
+    j += "]";
+  }
+  j += "}";
+  std::lock_guard<std::mutex> lock(scan_mtx_);
+  scan_json_.swap(j);
 }
 
 // ---- discovery dump (verkenning) ----
