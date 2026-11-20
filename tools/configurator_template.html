@@ -259,7 +259,7 @@ const I18N = {
     importNote: "Namen die je zelf hebt gegeven blijven behouden. Andere onderdelen van je YAML, zoals eigen template-entiteiten, neemt de configurator niet over: zet die er daarna zelf weer bij.",
     imported: "{0} waarden overgenomen.",
     notFound: "{0} niet gevonden in dit toestel: {1}",
-    noneFound: "Geen remeha_confida-entiteiten gevonden in deze YAML.",
+    noneFound: "Geen remeha_ble-entiteiten gevonden in deze YAML.",
     fromEsp: "Keuze van deze ESP overgenomen ({0} waarden).",
     espEmpty: "Deze ESP leest nog niets uit de lijst.",
     scanFirst: "Scan eerst het toestel.",
@@ -305,7 +305,7 @@ const I18N = {
     importNote: "Names you gave yourself are kept. Other parts of your YAML, such as your own template entities, are not taken over: add those back yourself afterwards.",
     imported: "{0} values taken over.",
     notFound: "{0} not found on this appliance: {1}",
-    noneFound: "No remeha_confida entities found in this YAML.",
+    noneFound: "No remeha_ble entities found in this YAML.",
     fromEsp: "Took over the choice of this ESP ({0} values).",
     espEmpty: "This ESP does not read anything from the list yet.",
     scanFirst: "Scan the appliance first.",
@@ -351,7 +351,7 @@ const I18N = {
     importNote: "Selbst vergebene Namen bleiben erhalten. Andere Teile deiner YAML, etwa eigene Template-Entitäten, übernimmt der Konfigurator nicht: füge sie danach selbst wieder hinzu.",
     imported: "{0} Werte übernommen.",
     notFound: "{0} auf diesem Gerät nicht gefunden: {1}",
-    noneFound: "Keine remeha_confida-Entitäten in dieser YAML gefunden.",
+    noneFound: "Keine remeha_ble-Entitäten in dieser YAML gefunden.",
     fromEsp: "Auswahl dieses ESP übernommen ({0} Werte).",
     espEmpty: "Dieser ESP liest noch nichts aus der Liste.",
     scanFirst: "Scanne zuerst das Gerät.",
@@ -607,7 +607,7 @@ function buildYaml() {
     let name = names[r.key] || defaultName(r, counts[r.key]);
     const nk = plat + "|" + name;
     if (used[nk]) name += " " + (++used[nk]); else used[nk] = 1;
-    const L = ["  - platform: remeha_confida"];
+    const L = ["  - platform: remeha_ble"];
     if (mode === "w") L[0] += "    " + t("yWrite");
     const texts = (plat === "select" || plat === "text_sensor") && o.e && o.e.length;
     if (useCode) {
@@ -786,8 +786,9 @@ async function takeFromEsp(quiet) {
     return false;
   }
 }
-// Read the remeha_confida entities from a pasted ESPHome YAML (simple line parser:
-// platform sections, "- platform: remeha_confida" items and their keys).
+// Read the remeha_ble entities from a pasted ESPHome YAML (simple line parser:
+// platform sections, "- platform: remeha_ble" items and their keys). The old name
+// remeha_confida is accepted too, so a YAML from before v2.0 can be converted.
 function parseYaml(text) {
   const items = [];
   const subst = {};
@@ -801,7 +802,7 @@ function parseYaml(text) {
     if (inSubst && (m = line.match(/^\s+([A-Za-z_]+):\s*(.+)$/))) { subst[m[1]] = m[2].trim().replace(/^["']|["']$/g, ""); continue; }
     if ((m = line.match(/^\s*-\s+platform:\s*(\S+)/))) {
       flush();
-      if (m[1] === "remeha_confida" && ["sensor", "text_sensor", "binary_sensor", "number", "select", "switch"].includes(plat)) cur = { plat };
+      if ((m[1] === "remeha_ble" || m[1] === "remeha_confida") && ["sensor", "text_sensor", "binary_sensor", "number", "select", "switch"].includes(plat)) cur = { plat };
       continue;
     }
     if (cur && (m = line.match(/^\s+(code|index|subindex|node|name):\s*(.+)$/))) cur[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");

@@ -1,4 +1,4 @@
-# Preset 'Basis' voor de remeha_confida-component (esphome-remeha-ble).
+# Preset 'Basis' voor de remeha_ble-component (esphome-remeha-ble).
 # Kerngegevens van een Remeha-warmtepomp: temperaturen, status, vermogen en COP.
 #
 # Gebruik in je eigen YAML (naast de hub-configuratie):
@@ -10,45 +10,45 @@
 # gemeld en daarna niet meer uitgelezen. Getest op een Confida 40.
 
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM001            # aanvoer warmtepomp
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM002            # retour warmtepomp
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM003            # setpunt aanvoer warmtepomp
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM016            # aanvoer toestel
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM027            # buitentemperatuur
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM101            # intern aanvoersetpunt
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CM030            # ruimtetemperatuur
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM019            # waterdruk
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM056            # waterdebiet
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM160            # thermisch vermogen
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM161            # elektrisch vermogen
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM031            # momentane COP
 
 text_sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM012            # status als tekst
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM014            # substatus als tekst
 
 binary_sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM007            # in storing
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM008            # compressor aan
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM009            # ontdooien
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM030            # vraag om compressorstart
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM015            # pomp draait

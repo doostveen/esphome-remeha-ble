@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maak components/remeha_confida/codebook.json uit data/Remeha_parametercodeboek.xlsx.
+"""Maak components/remeha_ble/codebook.json uit data/Remeha_parametercodeboek.xlsx.
 
 De component gebruikt dit bestand alleen bij het compileren (niet op de ESP), om
 een entiteit met alleen `code: HM001` automatisch in te vullen: index, subindex,
@@ -15,7 +15,7 @@ import openpyxl
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "data" / "Remeha_parametercodeboek.xlsx"
-OUT = ROOT / "components" / "remeha_confida" / "codebook.json"
+OUT = ROOT / "components" / "remeha_ble" / "codebook.json"
 
 
 def parse_choices(txt):

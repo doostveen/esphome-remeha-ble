@@ -50,6 +50,13 @@ webpagina, de **configurator**, maakt van je keuze een complete ESPHome-YAML.
 4. **Kiezen en flashen.** Vink aan wat je wilt lezen en wat je wilt kunnen wijzigen,
    kopieer de YAML, vervang daarmee de start-YAML in ESPHome en installeer opnieuw.
 
+### Kom je van v1.x (`remeha_confida`)?
+
+Versie 2.0 heeft de component hernoemd naar `remeha_ble`. De snelste weg: flash de nieuwe
+versie met de start-YAML, open de configurator, kies *YAML inlezen* en plak je oude YAML.
+Je keuze en de namen van je entiteiten worden overgenomen. Met de hand: zie de
+[CHANGELOG](CHANGELOG.md).
+
 ## De configurator
 
 <!-- SCREENSHOT: waarden kiezen (docs/images/configurator-choose.png) -->
@@ -68,7 +75,7 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
   één regel met een **+** om de elementen te tonen.
 - **Zoeken en filteren** op code, naam, groep, soort en niveau.
 - **Begin bij je huidige keuze:** *Keuze van deze ESP overnemen* vinkt aan wat de
-  firmware nu uitleest; *YAML inlezen* neemt de remeha_confida-entiteiten over uit een
+  firmware nu uitleest; *YAML inlezen* neemt de remeha_ble-entiteiten over uit een
   YAML die je plakt, inclusief namen die je zelf hebt gegeven.
 - **Talen:** Nederlands, Engels en Duits. De taal bepaalt ook de entiteitnamen en
   keuzeteksten in de YAML die je krijgt.
@@ -76,7 +83,7 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
   van het gescande toestel in de YAML. Sluit je de ESP later aan op een ander type, dan
   meldt de log dat en zie je het bij de entiteit *Remeha toestel*.
 
-De configurator staat aan met `configurator: true` onder `remeha_confida:` en heeft
+De configurator staat aan met `configurator: true` onder `remeha_ble:` en heeft
 `web_server:` nodig. Hij kost ongeveer 140 kB flash; zet hem op `false` als je klaar
 bent en die ruimte nodig hebt.
 
@@ -85,23 +92,23 @@ bent en die ruimte nodig hebt.
 De configurator schrijft het hele bestand, maar het helpt om te weten wat erin staat.
 
 ```yaml
-remeha_confida:
-  id: confida
-  ble_client_id: confida_client
+remeha_ble:
+  id: remeha
+  ble_client_id: remeha_client
   passkey: !secret remeha_bt_key   # ingebouwde Bluetooth; genegeerd bij de GTW-IoT
   appliance:
     name: "Remeha toestel"         # herkend toestel (artikelnummer en naam)
   configurator: true               # pagina op http://<ip-van-de-esp>/remeha
 
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM001                    # aanvoertemperatuur warmtepomp
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM116
     name: "Hogedruk"               # wat je zelf invult, gaat voor
 
 number:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CP230                    # hellingshoek stooklijn (wijzigt het toestel!)
 ```
 
@@ -176,7 +183,7 @@ objecten, keuzelijsten en foutcodes staat in [`data/`](data/README.md).
 
 ```
 remeha-start.yaml           eerste flash: verbindt, basisset, configurator aan
-components/remeha_confida/  de ESPHome external component
+components/remeha_ble/  de ESPHome external component
 presets/                    groepen voor de knoppen Snel aanvinken (ook als package te gebruiken)
 data/                       codeboek: objecten, keuzelijsten, foutcodes, vertalingen
 docs/readme.md              beschrijving van het protocol

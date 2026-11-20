@@ -2,7 +2,7 @@
 #  Built-in codebook (compile time only, nothing of this ends up on the ESP).
 #
 #  Lets an entity be declared with just the appliance code, e.g.
-#      - platform: remeha_confida
+#      - platform: remeha_ble
 #        code: HM001
 #  and fills in index, subindex, value_type, gain, unit, device/state class,
 #  accuracy and a Dutch name from codebook.json (generated from

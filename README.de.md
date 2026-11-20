@@ -53,6 +53,13 @@ ESPHome-YAML.
 4. **Auswählen und flashen.** Kreuze an, was du lesen und was du ändern möchtest,
    kopiere die YAML, ersetze damit die Start-YAML in ESPHome und installiere erneut.
 
+### Du kommst von v1.x (`remeha_confida`)?
+
+Version 2.0 hat die Komponente in `remeha_ble` umbenannt. Der schnellste Weg: flashe die
+neue Version mit der Start-YAML, öffne den Konfigurator, wähle *YAML einlesen* und füge
+deine alte YAML ein. Deine Auswahl und die Namen deiner Entitäten werden übernommen. Von
+Hand: siehe das [CHANGELOG](CHANGELOG.md).
+
 ## Der Konfigurator
 
 <!-- SCREENSHOT: Werte auswählen (docs/images/configurator-choose.png) -->
@@ -72,7 +79,7 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
 - **Suchen und filtern** nach Code, Name, Gruppe, Art und Ebene.
 - **Mit der aktuellen Auswahl beginnen:** *Auswahl dieses ESP übernehmen* kreuzt an,
   was die Firmware jetzt ausliest; *YAML einlesen* übernimmt die
-  remeha_confida-Entitäten aus einer eingefügten YAML, einschließlich selbst vergebener
+  remeha_ble-Entitäten aus einer eingefügten YAML, einschließlich selbst vergebener
   Namen.
 - **Sprachen:** Deutsch, Englisch und Niederländisch. Die Sprache bestimmt auch die
   Entitätsnamen und Auswahltexte in der erzeugten YAML.
@@ -80,7 +87,7 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
   Artikelnummer des gescannten Geräts in die YAML. Schließt du den ESP später an einen
   anderen Typ an, meldet das Log das und die Entität *Remeha Gerät* zeigt es an.
 
-Der Konfigurator wird mit `configurator: true` unter `remeha_confida:` eingeschaltet und
+Der Konfigurator wird mit `configurator: true` unter `remeha_ble:` eingeschaltet und
 braucht `web_server:`. Er belegt etwa 140 kB Flash; setze ihn auf `false`, wenn du
 fertig bist und den Platz brauchst.
 
@@ -89,23 +96,23 @@ fertig bist und den Platz brauchst.
 Der Konfigurator schreibt die ganze Datei, aber es hilft zu wissen, was darin steht.
 
 ```yaml
-remeha_confida:
-  id: confida
-  ble_client_id: confida_client
+remeha_ble:
+  id: remeha
+  ble_client_id: remeha_client
   passkey: !secret remeha_bt_key   # eingebautes Bluetooth; beim GTW-IoT ignoriert
   appliance:
     name: "Remeha Gerät"           # erkanntes Gerät (Artikelnummer und Name)
   configurator: true               # Seite unter http://<esp-ip>/remeha
 
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM001                    # Vorlauftemperatur Wärmepumpe
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM116
     name: "Hochdruck"              # was du selbst angibst, hat Vorrang
 
 number:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CP230                    # Steilheit der Heizkurve (ändert das Gerät!)
 ```
 
@@ -186,7 +193,7 @@ in [`data/`](data/README.md).
 
 ```
 remeha-start.yaml           erstes Flashen: verbindet, Grundauswahl, Konfigurator an
-components/remeha_confida/  die ESPHome External Component
+components/remeha_ble/  die ESPHome External Component
 presets/                    Gruppen für die Schnellauswahl (auch als Package nutzbar)
 data/                       Codebuch: Objekte, Auswahllisten, Fehlercodes, Übersetzungen
 docs/readme.md              Beschreibung des Protokolls

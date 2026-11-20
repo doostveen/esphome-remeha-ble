@@ -43,7 +43,7 @@ web_server:
 
 external_components:
   - source: github://mcc-tweakers/esphome-remeha-ble@main
-    components: [remeha_confida]
+    components: [remeha_ble]
     refresh: 1d
 
 button:
@@ -58,9 +58,9 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     turn_on_action:
-      - lambda: 'id(confida).set_active(true);'
+      - lambda: 'id(remeha).set_active(true);'
     turn_off_action:
-      - lambda: 'id(confida).set_active(false);'
+      - lambda: 'id(remeha).set_active(false);'
 
 esp32_ble:
   io_capability: keyboard_only   # needed to pair with the sticker number
@@ -69,11 +69,11 @@ esp32_ble_tracker:
 
 ble_client:
   - mac_address: ${ble_mac}
-    id: confida_client
+    id: remeha_client
 
-remeha_confida:
-  id: confida
-  ble_client_id: confida_client
+remeha_ble:
+  id: remeha
+  ble_client_id: remeha_client
   update_interval: 30s
   service_uuid: "f8fc98e4-5919-4a5c-852e-dfe04ad383c0"
   write_uuid:   "496b1b03-cebc-4d59-9c32-14ea88c266f9"
@@ -95,45 +95,45 @@ remeha_confida:
 
 # --- Basic set (preset 'basis'); replace this later with the configurator output ---
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM001
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM002
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM003
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM016
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM027
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM101
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CM030
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM019
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM056
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM160
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM161
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM031
 
 text_sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM012
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM014
 
 binary_sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM007
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM008
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM009
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: HM030
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AM015

@@ -1,11 +1,11 @@
 // ============================================================================
-//  Remeha Confida -> ESPHome BLE component  (declarations)
+//  Remeha BLE -> ESPHome component  (declarations)
 // ----------------------------------------------------------------------------
-//  RemehaConfida is both a PollingComponent (update() every 30 s) and a
+//  RemehaBle is both a PollingComponent (update() every 30 s) and a
 //  BLEClientNode (receives GATT events). It owns a list of RemehaItem, each
 //  the binding between one appliance object (node/index/subindex) and one HA
 //  entity (sensor / text_sensor / number / binary_sensor / switch). The full protocol is documented at
-//  the top of remeha_confida.cpp; this header just declares the moving parts.
+//  the top of remeha_ble.cpp; this header just declares the moving parts.
 // ============================================================================
 #pragma once
 #ifdef USE_ESP32
@@ -31,7 +31,7 @@
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
-namespace remeha_confida {
+namespace remeha_ble {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -74,7 +74,7 @@ struct RemehaItem {
 enum St { ST_INIT = 0, ST_GATE_WAIT_CHAL, ST_GATE_WAIT_ACK,
           ST_CANIP_WAIT_CHAL, ST_CANIP_WAIT_ACK, ST_CANIP_WAIT_RX6, ST_RUN };
 
-class RemehaConfida : public PollingComponent,
+class RemehaBle : public PollingComponent,
                       public ble_client::BLEClientNode,
                       public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -124,7 +124,7 @@ class RemehaConfida : public PollingComponent,
   void set_active(bool a);
   // Discovery dump (verkenning): read a fixed set of identification/discovery
   // objects once (read-only) and log their raw bytes as "DUMP" lines. Trigger it
-  // from YAML, e.g. a template button: on_press: lambda: id(confida).start_discovery_dump();
+  // from YAML, e.g. a template button: on_press: lambda: id(remeha).start_discovery_dump();
   void start_discovery_dump();
 
   // Queue a parameter WRITE (operation 0x04). data = value bytes, LITTLE-endian.
@@ -274,7 +274,7 @@ class RemehaConfida : public PollingComponent,
 // write frame (operation 0x04) and hands it to the hub's write queue.
 class RemehaNumber : public number::Number, public Component {
  public:
-  void set_parent(RemehaConfida *p) { parent_ = p; }
+  void set_parent(RemehaBle *p) { parent_ = p; }
   void set_node(uint8_t v) { node_ = v; }
   void set_index(uint16_t v) { index_ = v; }
   void set_sub(uint8_t v) { sub_ = v; }
@@ -295,7 +295,7 @@ class RemehaNumber : public number::Number, public Component {
   void control(float value) override;
   struct LimitsPref { float min; float max; float step; uint32_t magic; };
   uint32_t pref_hash_() const;
-  RemehaConfida *parent_{nullptr};
+  RemehaBle *parent_{nullptr};
   uint8_t node_{1};
   uint16_t index_{0};
   uint8_t sub_{0};
@@ -311,7 +311,7 @@ class RemehaNumber : public number::Number, public Component {
 // mapped back to its raw choice number and written (operation 0x04, 1 byte).
 class RemehaSelect : public select::Select, public Component {
  public:
-  void set_parent(RemehaConfida *p) { parent_ = p; }
+  void set_parent(RemehaBle *p) { parent_ = p; }
   void set_node(uint8_t v) { node_ = v; }
   void set_index(uint16_t v) { index_ = v; }
   void set_sub(uint8_t v) { sub_ = v; }
@@ -322,7 +322,7 @@ class RemehaSelect : public select::Select, public Component {
 
  protected:
   void control(const std::string &value) override;
-  RemehaConfida *parent_{nullptr};
+  RemehaBle *parent_{nullptr};
   uint8_t node_{1};
   uint16_t index_{0};
   uint8_t sub_{0};
@@ -336,7 +336,7 @@ class RemehaSelect : public select::Select, public Component {
 // also polled, so the switch shows the appliance's real read-back state.
 class RemehaSwitch : public switch_::Switch, public Component {
  public:
-  void set_parent(RemehaConfida *p) { parent_ = p; }
+  void set_parent(RemehaBle *p) { parent_ = p; }
   void set_node(uint8_t v) { node_ = v; }
   void set_index(uint16_t v) { index_ = v; }
   void set_sub(uint8_t v) { sub_ = v; }
@@ -344,13 +344,13 @@ class RemehaSwitch : public switch_::Switch, public Component {
 
  protected:
   void write_state(bool state) override;
-  RemehaConfida *parent_{nullptr};
+  RemehaBle *parent_{nullptr};
   uint8_t node_{1};
   uint16_t index_{0};
   uint8_t sub_{0};
   uint8_t true_value_{1};
 };
 
-}  // namespace remeha_confida
+}  // namespace remeha_ble
 }  // namespace esphome
 #endif

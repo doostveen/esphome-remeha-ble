@@ -1,4 +1,4 @@
-# Preset 'Ruimte' voor de remeha_confida-component (esphome-remeha-ble).
+# Preset 'Ruimte' voor de remeha_ble-component (esphome-remeha-ble).
 # Ruimtetemperaturen en gewenste temperatuur van de (actieve) groep.
 #
 # Gebruik in je eigen YAML (naast de hub-configuratie):
@@ -10,9 +10,9 @@
 # gemeld en daarna niet meer uitgelezen. Getest op een Confida 40.
 
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CM260            # ruimtetemperatuur hoge resolutie
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CM190            # gewenste ruimtetemperatuur
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: CM280            # berekende gewenste ruimtetemperatuur

@@ -15,14 +15,14 @@
 #if defined(USE_ESP32) && defined(USE_REMEHA_CONFIGURATOR)
 #include "esphome/core/component.h"
 #include "esphome/components/web_server_base/web_server_base.h"
-#include "remeha_confida.h"
+#include "remeha_ble.h"
 
 namespace esphome {
-namespace remeha_confida {
+namespace remeha_ble {
 
 class RemehaConfigurator : public AsyncWebHandler, public Component {
  public:
-  RemehaConfigurator(web_server_base::WebServerBase *base, RemehaConfida *hub) : base_(base), hub_(hub) {}
+  RemehaConfigurator(web_server_base::WebServerBase *base, RemehaBle *hub) : base_(base), hub_(hub) {}
   void setup() override;
   float get_setup_priority() const override { return setup_priority::WIFI - 1.0f; }  // after the web server
   bool canHandle(AsyncWebServerRequest *request) const override;
@@ -30,9 +30,9 @@ class RemehaConfigurator : public AsyncWebHandler, public Component {
 
  protected:
   web_server_base::WebServerBase *base_;
-  RemehaConfida *hub_;
+  RemehaBle *hub_;
 };
 
-}  // namespace remeha_confida
+}  // namespace remeha_ble
 }  // namespace esphome
 #endif

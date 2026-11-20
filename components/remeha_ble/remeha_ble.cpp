@@ -1,5 +1,5 @@
 // ============================================================================
-//  Remeha Confida -> ESPHome BLE component  (implementation)
+//  Remeha BLE -> ESPHome component  (implementation)
 // ----------------------------------------------------------------------------
 //  WHAT THIS DOES, END TO END
 //  The ESP32 speaks the heat pump's native BLE protocol: it bonds to the
@@ -49,7 +49,7 @@
 //    sent before the next poll; the appliance replies with an op 0x05 resp.
 // ============================================================================
 #ifdef USE_ESP32
-#include "remeha_confida.h"
+#include "remeha_ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <algorithm>
@@ -62,11 +62,11 @@
 #include <esp_heap_caps.h>
 
 namespace esphome {
-namespace remeha_confida {
+namespace remeha_ble {
 
 // CRC-16/MODBUS (poly 0xA001, init 0xFFFF), stored big-endian on the wire.
 
-static const char *const TAG = "remeha_confida";
+static const char *const TAG = "remeha_ble";
 static const size_t FRAG_DATA = 19;
 
 // RUN-phase watchdog thresholds (ms). The poll interval is 30 s, so RUN_RX_TIMEOUT
@@ -157,7 +157,7 @@ static const char *GATE_22  = "e2c47825-6dff-4d79-b74a-5bdc4f4661cf";  // notify
 // notify+indicate) that is also subscribed to. Fixed UUID; handle resolved.
 static const char *CANIP_EXTRA = "cff32957-5279-4075-bf3d-8e583d418c0d";
 
-uint16_t RemehaConfida::crc_modbus_(const uint8_t *d, size_t n) {
+uint16_t RemehaBle::crc_modbus_(const uint8_t *d, size_t n) {
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < n; i++) {
     crc ^= d[i];
@@ -167,7 +167,7 @@ uint16_t RemehaConfida::crc_modbus_(const uint8_t *d, size_t n) {
 }
 
 // TEA encrypt of block (level,level), key [0x15EFA43F, serial, chal, level], 32 rounds.
-void RemehaConfida::tea_(uint8_t level, uint32_t serial, uint32_t chal, uint32_t &o1, uint32_t &o2) {
+void RemehaBle::tea_(uint8_t level, uint32_t serial, uint32_t chal, uint32_t &o1, uint32_t &o2) {
   const uint32_t delta = 0x9E3779B9u, k0 = 0x15EFA43Fu;
   uint32_t v0 = level, v1 = level, s = delta;
   for (int i = 0; i < 32; i++) {
@@ -187,7 +187,7 @@ static std::string tohex(const uint8_t *d, size_t n) {
 static uint32_t le32(const uint8_t *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t) p[3] << 24); }
 static uint32_t be32(const uint8_t *p) { return (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]; }
 
-void RemehaConfida::setup() {
+void RemehaBle::setup() {
   gate_svc_ = espbt::ESPBTUUID::from_raw(GATE_SVC);
   gate_1b_ = espbt::ESPBTUUID::from_raw(GATE_1B);
   gate_1d_ = espbt::ESPBTUUID::from_raw(GATE_1D);
@@ -226,10 +226,10 @@ void RemehaConfida::setup() {
   ESP_LOGI(TAG, "init: geconfigureerd MAC=0x%012llX  scan_mode=%d  prefix='%s'  verbinding=%s",
            (unsigned long long) cfg_addr, (int) scan_mode_, name_prefix_.empty() ? "EHC-/GTW-IOT" : name_prefix_.c_str(),
            MODES[conn_mode_ % 3]);
-  ESP_LOGCONFIG(TAG, "Remeha Confida set up (%d items)", (int) items_.size());
+  ESP_LOGCONFIG(TAG, "Remeha BLE set up (%d items)", (int) items_.size());
 }
 
-uint8_t RemehaConfida::match_name_(const std::string &name) const {
+uint8_t RemehaBle::match_name_(const std::string &name) const {
   if (name.empty()) return 0;
   auto starts = [&name](const char *p) {
     size_t n = strlen(p);
@@ -244,7 +244,7 @@ uint8_t RemehaConfida::match_name_(const std::string &name) const {
   return starts("EHC-") ? 1 : 0;
 }
 
-bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool RemehaBle::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint64_t addr = device.address_uint64();
   const std::string &name = device.get_name();
 
@@ -285,8 +285,8 @@ bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return false;  // never claim the advertisement; ble_client drives the connection
 }
 
-void RemehaConfida::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remeha Confida: items=%d", (int) items_.size());
+void RemehaBle::dump_config() {
+  ESP_LOGCONFIG(TAG, "Remeha BLE: items=%d", (int) items_.size());
   // Show only the last two digits: enough to spot a wrong/mangled secret
   // (e.g. a leading zero read as octal) without putting the PIN in the log.
   if (conn_mode_ == 2) {
@@ -301,7 +301,7 @@ void RemehaConfida::dump_config() {
   }
 }
 
-void RemehaConfida::publish_reason_(const char *why) {
+void RemehaBle::publish_reason_(const char *why) {
   if (reason_ts_ != nullptr) reason_ts_->publish_state(why);
 }
 
@@ -309,7 +309,7 @@ void RemehaConfida::publish_reason_(const char *why) {
 // reconnecting, and wait (see PAIRING RULES). If the failure happened while we
 // still hold a bond for the appliance, that key is stale (rule 2): delete it so
 // the next attempt is a fresh passkey pairing - but only after the wait.
-void RemehaConfida::pairing_failed_(const uint8_t *bda, uint8_t reason) {
+void RemehaBle::pairing_failed_(const uint8_t *bda, uint8_t reason) {
   bool had_bond = false;
   int n = esp_ble_get_bond_device_num();
   if (n > 0) {
@@ -348,7 +348,7 @@ void RemehaConfida::pairing_failed_(const uint8_t *bda, uint8_t reason) {
   this->parent()->set_enabled(false);  // disconnects AND stops ble_client from reconnecting
 }
 
-void RemehaConfida::write_raw_(uint16_t handle, const uint8_t *d, size_t n) {
+void RemehaBle::write_raw_(uint16_t handle, const uint8_t *d, size_t n) {
   // On a plain (GTW-IoT) link, requesting MITM auth would make the stack try to
   // elevate security (pairing) before the write; use AUTH_REQ_NONE there.
   esp_gatt_auth_req_t auth = requires_pairing_ ? ESP_GATT_AUTH_REQ_MITM : ESP_GATT_AUTH_REQ_NONE;
@@ -362,7 +362,7 @@ void RemehaConfida::write_raw_(uint16_t handle, const uint8_t *d, size_t n) {
 // Dump the complete GATT attribute database (services, characteristics,
 // descriptors) with real handles and 128-bit UUIDs, for diagnostics. The
 // actual handle resolution happens in resolve_handles_(); this is read-only.
-void RemehaConfida::dump_gatt_() {
+void RemehaBle::dump_gatt_() {
   auto if_ = this->parent()->get_gattc_if();
   auto conn = this->parent()->get_conn_id();
   uint16_t count = 0;
@@ -401,7 +401,7 @@ void RemehaConfida::dump_gatt_() {
 // This keeps the component working even if an appliance lays out its attribute
 // table with different handles. Safe to call repeatedly: returns false until
 // service discovery is ready, so poll() retries on the next round.
-bool RemehaConfida::resolve_handles_() {
+bool RemehaBle::resolve_handles_() {
   if (h_canip_w_ != 0) return true;  // already resolved
 
   auto if_ = this->parent()->get_gattc_if();
@@ -470,7 +470,7 @@ bool RemehaConfida::resolve_handles_() {
   return true;
 }
 
-void RemehaConfida::start_notify_() {
+void RemehaBle::start_notify_() {
   reg_done_ = descr_done_ = 0;
   auto if_ = this->parent()->get_gattc_if();
   auto bda = this->parent()->get_remote_bda();
@@ -481,7 +481,7 @@ void RemehaConfida::start_notify_() {
   for (uint16_t h : hs) if (h != 0) esp_ble_gattc_register_for_notify(if_, bda, h);
 }
 
-void RemehaConfida::gate_trigger_() {
+void RemehaBle::gate_trigger_() {
   st_ = ST_GATE_WAIT_CHAL;
   rx_msg_.clear();
   // The appliance issues the challenge only on a ZERO-length Write Request to
@@ -495,7 +495,7 @@ void RemehaConfida::gate_trigger_() {
   if (e != ESP_OK) ESP_LOGW(TAG, "gate write_char_descr returned %s", esp_err_to_name(e));
 }
 
-void RemehaConfida::canip_start_() {
+void RemehaBle::canip_start_() {
   st_ = ST_CANIP_WAIT_CHAL;
   rx_msg_.clear();
   static const uint8_t f[] = {0xff, 0x01, 0x02, 0x01, 0x00, 0x02, 0x00, 0x03, 0x23, 0xd6};
@@ -503,7 +503,7 @@ void RemehaConfida::canip_start_() {
   write_raw_(h_canip_w_, f, sizeof(f));
 }
 
-void RemehaConfida::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void RemehaBle::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_PASSKEY_REQ_EVT: esp_ble_passkey_reply(param->ble_security.ble_req.bd_addr, true, passkey_); break;
     case ESP_GAP_BLE_NC_REQ_EVT:      esp_ble_confirm_reply(param->ble_security.ble_req.bd_addr, true); break;
@@ -532,7 +532,7 @@ void RemehaConfida::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
   }
 }
 
-void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                         esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT:
@@ -661,7 +661,7 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   }
 }
 
-void RemehaConfida::canip_handshake_(const std::vector<uint8_t> &m) {
+void RemehaBle::canip_handshake_(const std::vector<uint8_t> &m) {
   if (m.size() < 7) return;
   uint8_t cls = m[4], step = m[5];
   if (cls == 0x02 && step == 0x01 && m.size() >= 15) {
@@ -700,7 +700,7 @@ void RemehaConfida::canip_handshake_(const std::vector<uint8_t> &m) {
   }
 }
 
-void RemehaConfida::build_request_() {
+void RemehaBle::build_request_() {
   std::vector<uint8_t> &m = tx_msg_; m.clear();
   // Bulk-read items only; single-read items are fetched one by one (see queue_individual_reads_).
   uint8_t count = 0;
@@ -723,7 +723,7 @@ void RemehaConfida::build_request_() {
 // (last fragment), which send_next_fragment_ adds. (Until 16 okt 2026 we added
 // an extra 0xFF here, so on air it read "FF FF 01 02 ..." and the appliance
 // silently ignored every single read and every write.)
-std::vector<uint8_t> RemehaConfida::build_read_frame_(uint8_t node, uint16_t index, uint8_t sub) {
+std::vector<uint8_t> RemehaBle::build_read_frame_(uint8_t node, uint16_t index, uint8_t sub) {
   std::vector<uint8_t> body = {0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, node,
                                (uint8_t)(index >> 8), (uint8_t)(index & 0xFF), sub};
   uint16_t c = crc_modbus_(body.data(), body.size());
@@ -736,7 +736,7 @@ std::vector<uint8_t> RemehaConfida::build_read_frame_(uint8_t node, uint16_t ind
 }
 
 // (Re)fill the individual-read queue: one request frame per single-read item.
-void RemehaConfida::queue_individual_reads_() {
+void RemehaBle::queue_individual_reads_() {
   indiv_q_.clear();
   for (auto &it : items_) {
     if (it.single && !it.missing) indiv_q_.push_back(build_read_frame_(it.node, it.index, it.sub));
@@ -744,7 +744,7 @@ void RemehaConfida::queue_individual_reads_() {
 }
 
 // Pop and send the next queued individual read. Returns false when the queue is empty.
-bool RemehaConfida::send_next_individual_() {
+bool RemehaBle::send_next_individual_() {
   if (tx_busy_) return false;
   if (indiv_q_.empty()) {
     if (!menu_q_.empty()) {  // menu descriptor blocks (once per boot)
@@ -769,7 +769,7 @@ bool RemehaConfida::send_next_individual_() {
 }
 
 // Switch handler: release the BLE link (so a phone or service tool can connect) or resume.
-void RemehaConfida::set_active(bool a) {
+void RemehaBle::set_active(bool a) {
   if (a == active_) return;
   active_ = a;
   if (a) {
@@ -796,7 +796,7 @@ void RemehaConfida::set_active(bool a) {
   }
 }
 
-void RemehaConfida::update() {
+void RemehaBle::update() {
   if (!active_) {        // released: don't drive the connection
     if (this->parent()->enabled) this->parent()->set_enabled(false);
     return;
@@ -872,7 +872,7 @@ void RemehaConfida::update() {
 }
 
 // Start a fresh cycle: one bulk GetList, then queue the single-read items.
-void RemehaConfida::start_poll_cycle_() {
+void RemehaBle::start_poll_cycle_() {
   build_request_();
   tx_off_ = 0; tx_seq_ = 0; tx_busy_ = true; tx_start_ = millis();
   ESP_LOGD(TAG, "polling: GetList (%d bytes), responses %u", (int) tx_msg_.size(), (unsigned) responses_);
@@ -883,7 +883,7 @@ void RemehaConfida::start_poll_cycle_() {
 // Close the GATT link and reset state so ESPHome's ble_client reconnects cleanly.
 // Used both for a stalled handshake and for the RUN-phase watchdogs. Resetting
 // tx_busy_ here is what guarantees a wedged TX can never stay latched.
-void RemehaConfida::force_reconnect_(const char *why) {
+void RemehaBle::force_reconnect_(const char *why) {
   ESP_LOGW(TAG, "%s - forcing reconnect", why);
   reconnects_++;
   // Mirror the reason + count to the optional HA diagnostic entities, so it can be
@@ -896,7 +896,7 @@ void RemehaConfida::force_reconnect_(const char *why) {
   esp_ble_gattc_close(this->parent()->get_gattc_if(), this->parent()->get_conn_id());
 }
 
-void RemehaConfida::start_tx_(std::vector<uint8_t> frame) {
+void RemehaBle::start_tx_(std::vector<uint8_t> frame) {
   tx_msg_ = std::move(frame);
   tx_off_ = 0; tx_seq_ = 0; tx_busy_ = true; tx_start_ = millis();
   send_next_fragment_();
@@ -906,7 +906,7 @@ void RemehaConfida::start_tx_(std::vector<uint8_t> frame) {
 // build_read_frame_): on air it becomes FF 01 02 00 00 00 04 00 ... Sent
 // immediately when the bus is idle and the session is running, otherwise on the
 // next poll tick.
-void RemehaConfida::enqueue_write(uint8_t node, uint16_t index, uint8_t sub,
+void RemehaBle::enqueue_write(uint8_t node, uint16_t index, uint8_t sub,
                                   const std::vector<uint8_t> &data) {
   std::vector<uint8_t> body = {0x01, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, node,
                                (uint8_t)(index >> 8), (uint8_t)(index & 0xFF), sub};
@@ -927,7 +927,7 @@ void RemehaConfida::enqueue_write(uint8_t node, uint16_t index, uint8_t sub,
   }
 }
 
-void RemehaConfida::send_next_fragment_() {
+void RemehaBle::send_next_fragment_() {
   if (tx_off_ >= tx_msg_.size()) { tx_busy_ = false; return; }
   size_t remain = tx_msg_.size() - tx_off_;
   size_t chunk = remain > FRAG_DATA ? FRAG_DATA : remain;
@@ -943,7 +943,7 @@ void RemehaConfida::send_next_fragment_() {
 // matching item is bound to. Shared by the bulk GetList path and the individual
 // read path. `flag` 0x02 = "typed" (2-byte value + 2-byte type tag); anything
 // else = raw little-endian value in `len` bytes.
-void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint8_t *data, uint8_t len) {
+void RemehaBle::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint8_t *data, uint8_t len) {
   if (it.enum_map != nullptr && (it.text_sensor != nullptr || it.select_ != nullptr)) {
     // Enum shown as text: 1-byte choice number (or the low byte of a typed value).
     if (len < 1) return;
@@ -1016,7 +1016,7 @@ void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint
   }
 }
 
-void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
+void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
   if (m.size() < 10) return;
   if (crc_modbus_(m.data(), m.size() - 2) != (uint16_t)((m[m.size() - 2] << 8) | m[m.size() - 1])) {
     ESP_LOGW(TAG, "response CRC mismatch (%u bytes)", (unsigned) m.size());
@@ -1145,7 +1145,7 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
 // Each sub (1..20) is a block: u16 count (LE), 2 bytes (02 00), then count x 15
 // bytes: [0] flags [1] size [2..3] index LE [4..7] min i32 LE [8..11] max i32 LE
 // [12] subindex [13] step (raw) [14] user level. min = max = -1: no range.
-void RemehaConfida::start_menu_read_() {
+void RemehaBle::start_menu_read_() {
   menu_q_.clear(); menu_nodes_.clear(); menu_left_ = 0; id_left_ = 0;
   if (!id_done_) {  // which appliance is this? (once per boot)
     menu_q_.push_back(build_read_frame_(1, 0x2000, 9));
@@ -1166,7 +1166,7 @@ void RemehaConfida::start_menu_read_() {
            (unsigned) menu_left_);
 }
 
-void RemehaConfida::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len) {
+void RemehaBle::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len) {
   if (len < 4) return;
   size_t count = d[0] | (d[1] << 8);
   for (size_t k = 0; k < count && 4 + 15 * (k + 1) <= len; k++) {
@@ -1199,7 +1199,7 @@ static const KnownAppliance KNOWN_APPLIANCES[] = {
   {7887477, "Remeha Confida 40"},
 };
 
-void RemehaConfida::handle_identification_(uint16_t index, const uint8_t *d, size_t len, bool ok) {
+void RemehaBle::handle_identification_(uint16_t index, const uint8_t *d, size_t len, bool ok) {
   if (ok && index == 0x2000 && len >= 4) article_ = le32(d);
   if (ok && index == 0x3047) {
     appliance_name_.clear();
@@ -1287,7 +1287,7 @@ static void json_str_(std::string &j, const char *s, size_t n) {
   j += '"';
 }
 
-std::string RemehaConfida::current_json() const {
+std::string RemehaBle::current_json() const {
   std::string j;
   j.reserve(80 + items_.size() * 70);
   j += "{\"device\":";
@@ -1335,12 +1335,12 @@ static const uint32_t SCAN_PAUSE_TIMEOUT_MS = 60000;
 static const uint32_t SCAN_READ_TIMEOUT_MS = 20000;
 static const size_t SCAN_MIN_FREE_BLOCK = 8192;  // keep this much contiguous heap free for BLE/wifi
 
-void RemehaConfida::request_scan() {
+void RemehaBle::request_scan() {
   scan_poll_ms_.store(millis());
   scan_req_.store(true);
 }
 
-std::string RemehaConfida::scan_poll(int gen, uint16_t from) {
+std::string RemehaBle::scan_poll(int gen, uint16_t from) {
   scan_poll_ms_.store(millis());
   std::lock_guard<std::mutex> lock(scan_mtx_);
   if (gen != (int) scan_gen_.load()) from = 0;  // page is behind: send everything of this run
@@ -1366,7 +1366,7 @@ std::string RemehaConfida::scan_poll(int gen, uint16_t from) {
   return j;
 }
 
-void RemehaConfida::loop() {
+void RemehaBle::loop() {
   if (scan_req_.exchange(false)) {
     if (scan_state_ == 2) {
       // already reading: start over (the page lost its data, e.g. after a reload)
@@ -1391,7 +1391,7 @@ void RemehaConfida::loop() {
   }
 }
 
-void RemehaConfida::scan_reset_() {
+void RemehaBle::scan_reset_() {
   scan_restart_ = false;
   scan_article_ = 0;
   scan_name_.clear();
@@ -1409,7 +1409,7 @@ void RemehaConfida::scan_reset_() {
   update_scan_json_();
 }
 
-void RemehaConfida::start_scan_() {
+void RemehaBle::start_scan_() {
   scan_pending_ = false;
   scan_poll_ms_.store(millis());
   scan_reset_();
@@ -1419,7 +1419,7 @@ void RemehaConfida::start_scan_() {
   scan_issue_next_();
 }
 
-void RemehaConfida::scan_issue_next_() {
+void RemehaBle::scan_issue_next_() {
   if (scan_state_ != 2 || scan_inflight_ || scan_issued_ >= scan_total_) return;
   {
     std::lock_guard<std::mutex> lock(scan_mtx_);
@@ -1441,7 +1441,7 @@ void RemehaConfida::scan_issue_next_() {
   if (!tx_busy_) send_next_individual_();
 }
 
-void RemehaConfida::scan_abort_(const char *why) {
+void RemehaBle::scan_abort_(const char *why) {
   ESP_LOGW(TAG, "configurator: scan afgebroken: %s", why);
   scan_state_ = 4;
   scan_left_ = 0;
@@ -1455,7 +1455,7 @@ void RemehaConfida::scan_abort_(const char *why) {
   scan_head_ = buf;
 }
 
-void RemehaConfida::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub, const uint8_t *d, size_t len,
+void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub, const uint8_t *d, size_t len,
                                           bool ok) {
   // only the read we are waiting for (not a late answer after a timeout or abort)
   if (!scan_inflight_ || scan_expect_ != (((uint32_t) node << 24) | ((uint32_t) index << 8) | sub)) return;
@@ -1506,7 +1506,7 @@ void RemehaConfida::handle_scan_response_(uint8_t node, uint16_t index, uint8_t 
 }
 
 // Status part of the poll answer (without the closing brace; scan_poll adds the chunks).
-void RemehaConfida::update_scan_json_() {
+void RemehaBle::update_scan_json_() {
   if (scan_state_ == 4) return;  // keep the error text
   static const char *STATES[] = {"idle", "waiting", "scanning", "done"};
   char buf[200];
@@ -1557,13 +1557,13 @@ static const DumpObj DUMP_DISC[] = {
   {0x5074, 0},    // discovered zones (JSON)
 };
 
-void RemehaConfida::dump_queue_read_(uint8_t node, uint16_t index, uint8_t sub) {
+void RemehaBle::dump_queue_read_(uint8_t node, uint16_t index, uint8_t sub) {
   dump_q_.push_back(build_read_frame_(node, index, sub));
   dump_keys_.push_back(((uint32_t) node << 24) | ((uint32_t) index << 8) | sub);
   dump_left_++;
 }
 
-void RemehaConfida::start_discovery_dump() {
+void RemehaBle::start_discovery_dump() {
   if (!dump_q_.empty()) { ESP_LOGW(TAG, "DUMP loopt al (%u reads in de wachtrij)", (unsigned) dump_q_.size()); return; }
   dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
   auto add = [this](uint8_t node, const DumpObj &o) {
@@ -1578,7 +1578,7 @@ void RemehaConfida::start_discovery_dump() {
   else ESP_LOGI(TAG, "DUMP wacht tot de verbinding loopt");
 }
 
-bool RemehaConfida::dump_handle_(const std::vector<uint8_t> &m, uint8_t op) {
+bool RemehaBle::dump_handle_(const std::vector<uint8_t> &m, uint8_t op) {
   const size_t end = m.size() - 2;
   if (end < 11) return false;
   uint8_t node = m[7];
@@ -1693,6 +1693,6 @@ void RemehaSwitch::write_state(bool state) {
   this->publish_state(state);  // optimistic; the next poll confirms the read-back
 }
 
-}  // namespace remeha_confida
+}  // namespace remeha_ble
 }  // namespace esphome
 #endif

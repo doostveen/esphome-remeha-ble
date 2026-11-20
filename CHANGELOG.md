@@ -1,10 +1,26 @@
 # Changelog
 
-## v1.0.1 (2026-11-20)
+## v2.0.0 (2026-11-20)
 
+### Breaking: the component is now called `remeha_ble`
+The name no longer refers to one appliance. In your YAML:
+
+| v1.x | v2.0 |
+|---|---|
+| `components: [remeha_confida]` | `components: [remeha_ble]` |
+| `remeha_confida:` (the hub) | `remeha_ble:` |
+| `platform: remeha_confida` | `platform: remeha_ble` |
+| `remeha_confida_id:` (on an entity) | `remeha_ble_id:` |
+
+The start YAML and the configurator also use `id: remeha` and
+`ble_client_id: remeha_client`; your own ids may stay as they are. Easiest: open the
+configurator, choose *Read a YAML* and paste your old YAML; it accepts the old name and
+writes a YAML with the new one, keeping your entity names. Entity names and the
+behaviour in Home Assistant do not change.
+
+### Other changes
 - *Use the choice of this ESP* now also takes over the entity names and the device
-  name, so existing entities stay the same entities in Home Assistant (before, they got
-  new default names in the chosen language).
+  name, so existing entities stay the same entities in Home Assistant.
 - Clearer note under the YAML.
 - No compiler warning about an empty `else` in `dump_config` with log level INFO.
 

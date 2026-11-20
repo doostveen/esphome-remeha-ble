@@ -1,5 +1,5 @@
 # ============================================================================
-#  remeha_confida - ESPHome external component (hub + shared definitions)
+#  remeha_ble - ESPHome external component (hub + shared definitions)
 # ----------------------------------------------------------------------------
 #  This file defines the HUB component (one per appliance): the BLE connection,
 #  the GATT UUIDs and the pairing passkey. The per-value entities live in the
@@ -28,9 +28,9 @@ DEPENDENCIES = ["ble_client", "esp32_ble"]
 AUTO_LOAD = ["sensor", "text_sensor", "number", "binary_sensor", "switch", "select"]
 MULTI_CONF = True
 
-remeha_ns = cg.esphome_ns.namespace("remeha_confida")
-RemehaConfida = remeha_ns.class_(
-    "RemehaConfida", cg.PollingComponent, ble_client.BLEClientNode
+remeha_ns = cg.esphome_ns.namespace("remeha_ble")
+RemehaBle = remeha_ns.class_(
+    "RemehaBle", cg.PollingComponent, ble_client.BLEClientNode
 )
 RemehaNumber = remeha_ns.class_("RemehaNumber", number.Number, cg.Component)
 RemehaSwitch = remeha_ns.class_("RemehaSwitch", core_switch.Switch, cg.Component)
@@ -54,7 +54,7 @@ VALUE_TYPES = {
 }
 
 # Config keys shared across platforms
-CONF_REMEHA_ID = "remeha_confida_id"
+CONF_REMEHA_ID = "remeha_ble_id"
 CONF_NODE = "node"
 CONF_INDEX = "index"
 CONF_SUBINDEX = "subindex"
@@ -84,7 +84,7 @@ def read_fields(config):
 def enum_map_expr(choices):
     """C++ expression for a heap-allocated EnumMap {{raw, "text"}, ...} (lives forever)."""
     body = ", ".join(f"{{{int(raw)}, {cpp_string_escape(txt)}}}" for raw, txt in choices)
-    return cg.RawExpression(f"new esphome::remeha_confida::EnumMap{{{body}}}")
+    return cg.RawExpression(f"new esphome::remeha_ble::EnumMap{{{body}}}")
 
 CONF_SERVICE_UUID = "service_uuid"
 CONF_WRITE_UUID = "write_uuid"
@@ -155,7 +155,7 @@ def _passkey(value):
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(RemehaConfida),
+            cv.GenerateID(): cv.declare_id(RemehaBle),
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
             # 128-bit GATT UUIDs - get these once from an nRF Connect scan of your Confida.
             cv.Required(CONF_SERVICE_UUID): cv.string,

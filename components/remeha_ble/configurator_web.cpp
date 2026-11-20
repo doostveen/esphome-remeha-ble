@@ -6,9 +6,9 @@
 #include <cstdlib>
 
 namespace esphome {
-namespace remeha_confida {
+namespace remeha_ble {
 
-static const char *const TAG = "remeha_confida.web";
+static const char *const TAG = "remeha_ble.web";
 
 void RemehaConfigurator::setup() {
   base_->init();
@@ -57,6 +57,6 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
   request->send(res);  // synchronous, j stays valid
 }
 
-}  // namespace remeha_confida
+}  // namespace remeha_ble
 }  // namespace esphome
 #endif

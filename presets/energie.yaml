@@ -1,4 +1,4 @@
-# Preset 'Energie' voor de remeha_confida-component (esphome-remeha-ble).
+# Preset 'Energie' voor de remeha_ble-component (esphome-remeha-ble).
 # Energietellers en draaiuren. Let op: niet elk toestel vult elke teller.
 #
 # Gebruik in je eigen YAML (naast de hub-configuratie):
@@ -10,15 +10,15 @@
 # gemeld en daarna niet meer uitgelezen. Getest op een Confida 40.
 
 sensor:
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AC088            # elektriciteit CV
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AC098            # warmte CV
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: AC083            # seizoensrendement
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: PC000            # productie-uren verwarming
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: PC002            # aantal starts
-  - platform: remeha_confida
+  - platform: remeha_ble
     code: PC003            # branduren

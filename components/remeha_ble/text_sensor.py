@@ -9,19 +9,19 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
 from . import (
-    remeha_ns, RemehaConfida, READ_MODES, read_fields, enum_map_expr,
+    remeha_ns, RemehaBle, READ_MODES, read_fields, enum_map_expr,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_READ,
 )
 from .codebook import CONF_CODE, apply_code, code_entry, enum_choices
 
-DEPENDENCIES = ["remeha_confida"]
+DEPENDENCIES = ["remeha_ble"]
 CONF_OPTIONS = "options"
 
 CONFIG_SCHEMA = cv.All(
     apply_code("text_sensor"),
     text_sensor.text_sensor_schema().extend(
         {
-            cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+            cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaBle),
             cv.Optional(CONF_CODE): cv.string,
             cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
             cv.Required(CONF_INDEX): cv.hex_uint16_t,

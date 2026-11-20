@@ -11,18 +11,18 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from . import (
-    remeha_ns, RemehaConfida, VALUE_TYPES, READ_MODES, read_fields,
+    remeha_ns, RemehaBle, VALUE_TYPES, READ_MODES, read_fields,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_TYPE, CONF_GAIN, CONF_READ,
 )
 from .codebook import CONF_CODE, apply_code
 
-DEPENDENCIES = ["remeha_confida"]
+DEPENDENCIES = ["remeha_ble"]
 
 CONFIG_SCHEMA = cv.All(
     apply_code("sensor"),
     sensor.sensor_schema().extend(
         {
-            cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+            cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaBle),
             cv.Optional(CONF_CODE): cv.string,
             cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
             cv.Required(CONF_INDEX): cv.hex_uint16_t,
