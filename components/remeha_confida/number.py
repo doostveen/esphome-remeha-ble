@@ -11,19 +11,24 @@ import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP
 from . import (
-    remeha_ns, RemehaConfida, RemehaNumber, VALUE_TYPES, READ_MODES,
+    remeha_ns, RemehaConfida, RemehaNumber, VALUE_TYPES, READ_MODES, read_fields,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_TYPE, CONF_GAIN, CONF_READ,
 )
+from .codebook import CONF_CODE, apply_code
 
 DEPENDENCIES = ["remeha_confida"]
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    # `code: CP230` fills index/value_type/gain/unit/name and the technical
+    # min/max from the codebook (explicit YAML fields win).
+    apply_code("number"),
     # No hardcoded unit/device_class: each number sets its own in YAML
     # (unit_of_measurement / device_class), so the platform is generic.
     number.number_schema(RemehaNumber)
     .extend(
         {
             cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+            cv.Optional(CONF_CODE): cv.string,
             cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
             cv.Required(CONF_INDEX): cv.hex_uint16_t,
             cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
@@ -35,7 +40,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
 )
 
 
@@ -62,9 +67,7 @@ async def to_code(config):
         ("sub", config[CONF_SUBINDEX]),
         ("type", config[CONF_TYPE]),
         ("gain", config[CONF_GAIN]),
-        ("sensor", cg.nullptr),
-        ("text_sensor", cg.nullptr),
         ("number", var),
-        ("single", config[CONF_READ]),
+        *read_fields(config),
     )
     cg.add(hub.add_item(item))

@@ -3,27 +3,35 @@
 #  object (node/index/subindex + value_type + gain) to an HA sensor, and is
 #  registered as a RemehaItem on the hub so update() polls it. `read: single`
 #  fetches it with an individual request instead of the bulk GetList.
+#
+#  Shortcut: `code: HM001` fills index/subindex/value_type/gain/unit/name/...
+#  from the built-in codebook (see codebook.py); explicit fields still win.
 # ----------------------------------------------------------------------------
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from . import (
-    remeha_ns, RemehaConfida, VALUE_TYPES, READ_MODES,
+    remeha_ns, RemehaConfida, VALUE_TYPES, READ_MODES, read_fields,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_TYPE, CONF_GAIN, CONF_READ,
 )
+from .codebook import CONF_CODE, apply_code
 
 DEPENDENCIES = ["remeha_confida"]
 
-CONFIG_SCHEMA = sensor.sensor_schema().extend(
-    {
-        cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
-        cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
-        cv.Required(CONF_INDEX): cv.hex_uint16_t,
-        cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
-        cv.Required(CONF_TYPE): cv.enum(VALUE_TYPES, lower=True),
-        cv.Optional(CONF_GAIN, default=1.0): cv.float_,
-        cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
-    }
+CONFIG_SCHEMA = cv.All(
+    apply_code("sensor"),
+    sensor.sensor_schema().extend(
+        {
+            cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+            cv.Optional(CONF_CODE): cv.string,
+            cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
+            cv.Required(CONF_INDEX): cv.hex_uint16_t,
+            cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
+            cv.Required(CONF_TYPE): cv.enum(VALUE_TYPES, lower=True),
+            cv.Optional(CONF_GAIN, default=1.0): cv.float_,
+            cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
+        }
+    ),
 )
 
 
@@ -38,7 +46,6 @@ async def to_code(config):
         ("type", config[CONF_TYPE]),
         ("gain", config[CONF_GAIN]),
         ("sensor", sens),
-        ("text_sensor", cg.nullptr),
-        ("single", config[CONF_READ]),
+        *read_fields(config),
     )
     cg.add(hub.add_item(item))

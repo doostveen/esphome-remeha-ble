@@ -57,6 +57,48 @@ Een waarde toevoegen is **alleen YAML-werk** — je hoeft de component (C++) nie
 te raken. De lijst hierboven is maar een selectie; het toestel kent duizenden
 objecten.
 
+### De snelle manier: alleen de code
+
+Sinds de `dev`-versie kent de component het codeboek zelf. Je hoeft dan alleen de code
+op te geven (kolom "App-code" in het codeboek). Index, subindex, datatype, gain, eenheid,
+weergaveklasse en een Nederlandse naam worden automatisch ingevuld:
+
+```yaml
+sensor:
+  - platform: remeha_confida
+    code: HM001              # Aanvoertemperatuur van warmtepomp
+  - platform: remeha_confida
+    code: HM116
+    name: "Hogedruk"         # alles wat je zelf invult, gaat voor
+
+text_sensor:
+  - platform: remeha_confida
+    code: AM012              # keuzelijst als tekst, bv. "Warmtevraag"
+
+select:
+  - platform: remeha_confida
+    code: CP780              # instelbare keuzelijst met teksten (Regelstrategie)
+
+number:
+  - platform: remeha_confida
+    code: CP230              # Hellingshoek stooklijn
+```
+
+- **Welk platform?** `sensor` voor getallen, `text_sensor` voor een keuzelijst als tekst of
+  een tekstwaarde, `binary_sensor` voor aan/uit, `number` voor een instelbaar getal,
+  `select` voor een instelbare keuzelijst en `switch` voor een instelbare aan/uit-waarde.
+  Kies je een platform dat niet past (bijvoorbeeld een meetwaarde als `number`), dan meldt
+  ESPHome dat bij het valideren.
+- **Lezen gaat automatisch goed.** Met `code:` staat `read` standaard op `auto`: de
+  component probeert eerst de snelle bulk-lijst en leest het object los uit als het toestel
+  het daar niet teruggeeft. Bestaat een object niet op jouw toestel, dan staat dat in de log
+  en wordt het niet meer opgevraagd.
+- **`number`** krijgt nu nog de technische grenzen van het datatype. Zet zelf `min_value`
+  en `max_value` voor een prettige schuif of invoer.
+- Een paar codes komen dubbel voor in het codeboek; gebruik daarvoor `index:`.
+
+De uitgebreide manier hieronder (met `index:`, `value_type:` enzovoort) blijft werken.
+
 **Stap 1 — zoek het object op.** Gebruik het codeboek
 `data/Remeha_parametercodeboek.xlsx`, tabblad **"Parameters"**: alle objecten van het
 protocol, met Nederlandse namen. Zoek op de code (bv. `HM001`) of op een trefwoord in

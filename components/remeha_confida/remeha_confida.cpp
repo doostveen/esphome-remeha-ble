@@ -662,11 +662,11 @@ void RemehaConfida::build_request_() {
   std::vector<uint8_t> &m = tx_msg_; m.clear();
   // Bulk-read items only; single-read items are fetched one by one (see queue_individual_reads_).
   uint8_t count = 0;
-  for (auto &it : items_) { if (!it.single && count < 255) count++; }
+  for (auto &it : items_) { if (!it.single && !it.missing && count < 255) count++; }
   m.insert(m.end(), {0x01, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00, count});
   uint8_t done = 0;
   for (auto &it : items_) {
-    if (it.single || done >= count) continue;
+    if (it.single || it.missing || done >= count) continue;
     m.push_back(0x00); m.push_back(it.node);
     m.push_back((uint8_t)(it.index >> 8)); m.push_back((uint8_t)(it.index & 0xFF)); m.push_back(it.sub);
     done++;
@@ -697,7 +697,7 @@ std::vector<uint8_t> RemehaConfida::build_read_frame_(uint8_t node, uint16_t ind
 void RemehaConfida::queue_individual_reads_() {
   indiv_q_.clear();
   for (auto &it : items_) {
-    if (it.single) indiv_q_.push_back(build_read_frame_(it.node, it.index, it.sub));
+    if (it.single && !it.missing) indiv_q_.push_back(build_read_frame_(it.node, it.index, it.sub));
   }
 }
 
@@ -892,6 +892,26 @@ void RemehaConfida::send_next_fragment_() {
 // read path. `flag` 0x02 = "typed" (2-byte value + 2-byte type tag); anything
 // else = raw little-endian value in `len` bytes.
 void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint8_t *data, uint8_t len) {
+  if (it.enum_map != nullptr && (it.text_sensor != nullptr || it.select_ != nullptr)) {
+    // Enum shown as text: 1-byte choice number (or the low byte of a typed value).
+    if (len < 1) return;
+    int32_t raw = data[0];
+    if (flag == 0x02 && len >= 2 && data[0] == 0xFF && data[1] == 0xFF) return;  // not available
+    const char *txt = nullptr;
+    for (auto &p : *it.enum_map) {
+      if (p.first == raw) { txt = p.second; break; }
+    }
+    ESP_LOGD(TAG, "0x%04X:%u = %ld -> %s", it.index, it.sub, (long) raw, txt ? txt : "?");
+    if (it.select_ != nullptr) {
+      if (txt != nullptr) it.select_->publish_state(std::string(txt));
+      else ESP_LOGW(TAG, "0x%04X:%u: keuze %ld staat niet in de lijst", it.index, it.sub, (long) raw);
+    }
+    if (it.text_sensor != nullptr) {
+      if (txt != nullptr) it.text_sensor->publish_state(txt);
+      else it.text_sensor->publish_state("onbekend (" + std::to_string(raw) + ")");
+    }
+    return;
+  }
   if (it.text_sensor != nullptr) {
     std::string s;
     for (uint8_t j = 0; j < len && data[j]; j++) s.push_back((char) data[j]);
@@ -899,7 +919,7 @@ void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint
     return;
   }
   if (it.sensor == nullptr && it.number == nullptr && it.binary_sensor == nullptr &&
-      it.switch_ == nullptr) return;
+      it.switch_ == nullptr) return;  // (select/text enums are handled above)
   int64_t raw = 0; bool ok = true;
   bool is_signed = (it.type == VT_I8 || it.type == VT_I16 || it.type == VT_I32);
   if (flag == 0x02) {
@@ -963,11 +983,8 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
     uint8_t sub = m[10];
     const uint8_t *data = &m[11];
     uint8_t len = (uint8_t)(end - 11);
-    for (auto &it : items_) {
-      if (it.node == node && it.index == index && it.sub == sub) {
-        decode_and_publish_(it, 0x01, data, len);
-        break;
-      }
+    for (auto &it : items_) {  // all entities bound to this object (e.g. sensor + select)
+      if (it.node == node && it.index == index && it.sub == sub) decode_and_publish_(it, 0x01, data, len);
     }
     return;
   }
@@ -988,6 +1005,18 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
     const char *what = (op == 0x06) ? "WRITE GEWEIGERD" : "READ MISLUKT";
     ESP_LOGW(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
              (unsigned long) code, sdo_abort_str(code));
+    // Object or subindex does not exist on this appliance: stop polling it, so
+    // a value from the codebook that this model lacks does not cost a read every
+    // cycle (and does not show a bogus value).
+    if (op == 0x02 && (code == 0x06020000UL || code == 0x06090011UL)) {
+      for (auto &it : items_) {
+        if (it.node == m[7] && it.index == index && it.sub == m[10] && !it.missing) {
+          it.missing = true;
+          ESP_LOGW(TAG, "0x%04X:%u (node %u) bestaat niet op dit toestel: wordt niet meer uitgelezen",
+                   index, m[10], m[7]);
+        }
+      }
+    }
     if (op == 0x06 && write_result_ts_ != nullptr) {
       char msg[96];
       snprintf(msg, sizeof(msg), "geweigerd 0x%04X:%u: %s (0x%08lX)", index, m[10], sdo_abort_str(code),
@@ -1003,6 +1032,7 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
   }
 
   // Bulk GetList response. Each entry: <flag:1><node:1><idxHi:1><idxLo:1><sub:1><status:2><len:1><data:len>
+  for (auto &it : items_) it.seen = false;
   size_t i = 8;
   while (i + 8 <= end) {
     uint8_t flag = m[i];
@@ -1017,13 +1047,25 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
       ESP_LOGV(TAG, "GetList 0x%04X:%u status 0x%04X", index, sub, status);
       i += 8 + len; continue;
     }
-    for (auto &it : items_) {
+    for (auto &it : items_) {  // all entities bound to this object
       if (it.node == node && it.index == index && it.sub == sub) {
+        it.seen = true;
         decode_and_publish_(it, flag, data, len);
-        break;
       }
     }
     i += 8 + len;
+  }
+  // read: auto - an object the appliance does not return in the bulk GetList
+  // (missing, or a non-zero status) is switched to an individual read after two
+  // replies in a row without it.
+  for (auto &it : items_) {
+    if (it.single || !it.auto_read || it.missing) continue;
+    if (it.seen) { it.miss = 0; continue; }
+    if (++it.miss >= 2) {
+      it.single = true;
+      ESP_LOGI(TAG, "0x%04X:%u (node %u) zit niet in de bulk-lijst: voortaan los uitgelezen", it.index, it.sub,
+               it.node);
+    }
   }
 }
 
@@ -1160,6 +1202,23 @@ void RemehaNumber::control(float value) {
   ESP_LOGI(TAG, "number set %.3f -> raw %ld -> write 0x%04X:%u", value, raw, index_, sub_);
   parent_->enqueue_write(node_, index_, sub_, data);
   this->publish_state(value);  // optimistic; the next poll confirms the read-back
+}
+
+void RemehaSelect::control(const std::string &value) {
+  if (parent_ == nullptr || map_ == nullptr) {
+    ESP_LOGW(TAG, "select 0x%04X:%u has no parent hub", index_, sub_);
+    return;
+  }
+  for (auto &p : *map_) {
+    if (value == p.second) {
+      std::vector<uint8_t> data{(uint8_t) (p.first & 0xFF)};
+      ESP_LOGI(TAG, "select '%s' -> write 0x%04X:%u = %ld", value.c_str(), index_, sub_, (long) p.first);
+      parent_->enqueue_write(node_, index_, sub_, data);
+      this->publish_state(value);  // optimistic; the next poll confirms the read-back
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "select 0x%04X:%u: onbekende keuze '%s'", index_, sub_, value.c_str());
 }
 
 void RemehaSwitch::write_state(bool state) {

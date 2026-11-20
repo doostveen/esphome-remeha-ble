@@ -17,11 +17,13 @@ from esphome.components import ble_client, esp32_ble, esp32_ble_tracker, number
 from esphome.components import sensor as core_sensor, text_sensor as core_text_sensor
 # Same for switch: switch.py in this component would shadow the core module.
 from esphome.components import switch as core_switch
+from esphome.components import select as core_select
+from esphome.helpers import cpp_string_escape
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_TOTAL_INCREASING
 
 CODEOWNERS = ["@diy"]
 DEPENDENCIES = ["ble_client", "esp32_ble"]
-AUTO_LOAD = ["sensor", "text_sensor", "number", "binary_sensor", "switch"]
+AUTO_LOAD = ["sensor", "text_sensor", "number", "binary_sensor", "switch", "select"]
 MULTI_CONF = True
 
 remeha_ns = cg.esphome_ns.namespace("remeha_confida")
@@ -30,6 +32,7 @@ RemehaConfida = remeha_ns.class_(
 )
 RemehaNumber = remeha_ns.class_("RemehaNumber", number.Number, cg.Component)
 RemehaSwitch = remeha_ns.class_("RemehaSwitch", core_switch.Switch, cg.Component)
+RemehaSelect = remeha_ns.class_("RemehaSelect", core_select.Select, cg.Component)
 
 # Shared value-type map (used by sensor + number platforms). Both the native
 # tokens (u16/i16/...) and Modbus-style aliases (U_WORD/S_WORD/...) are accepted.
@@ -63,7 +66,22 @@ CONF_TRUE_VALUE = "true_value"
 # cheapest). "single" = fetched with its own individual read request (operation 0x00),
 # for objects the appliance does NOT return in the bulk GetList (typically scalar
 # config parameters such as AP058/0x302B). Adding a value is YAML-only: set read: single.
-READ_MODES = {"bulk": False, "single": True}
+# "auto" (default when an entity is declared with `code:`) = start in the bulk
+# GetList; if the appliance does not return the object there, the component
+# switches it to an individual read by itself.
+READ_MODES = {"bulk": False, "single": True, "auto": False}
+
+
+def read_fields(config):
+    """RemehaItem fields for the read mode."""
+    mode = str(config[CONF_READ])
+    return [("single", mode == "single"), ("auto_read", mode == "auto")]
+
+
+def enum_map_expr(choices):
+    """C++ expression for a heap-allocated EnumMap {{raw, "text"}, ...} (lives forever)."""
+    body = ", ".join(f"{{{int(raw)}, {cpp_string_escape(txt)}}}" for raw, txt in choices)
+    return cg.RawExpression(f"new esphome::remeha_confida::EnumMap{{{body}}}")
 
 CONF_SERVICE_UUID = "service_uuid"
 CONF_WRITE_UUID = "write_uuid"

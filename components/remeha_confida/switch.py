@@ -15,18 +15,21 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
 from . import (
-    remeha_ns, RemehaConfida, RemehaSwitch, VALUE_TYPES, READ_MODES,
+    remeha_ns, RemehaConfida, RemehaSwitch, VALUE_TYPES, READ_MODES, read_fields,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_READ,
     CONF_TRUE_VALUE,
 )
+from .codebook import CONF_CODE, apply_code
 
 DEPENDENCIES = ["remeha_confida"]
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    apply_code("switch"),
     switch.switch_schema(RemehaSwitch, default_restore_mode="DISABLED")
     .extend(
         {
             cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+            cv.Optional(CONF_CODE): cv.string,
             cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
             cv.Required(CONF_INDEX): cv.hex_uint16_t,
             cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
@@ -34,7 +37,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
 )
 
 
@@ -58,6 +61,6 @@ async def to_code(config):
         ("switch_", var),
         ("has_true_value", CONF_TRUE_VALUE in config),
         ("true_value", config.get(CONF_TRUE_VALUE, 1)),
-        ("single", config[CONF_READ]),
+        *read_fields(config),
     )
     cg.add(hub.add_item(item))

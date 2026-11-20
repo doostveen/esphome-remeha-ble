@@ -20,6 +20,8 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/components/select/select.h"
+#include <utility>
 #include <esp_gattc_api.h>
 #include <esp_gap_ble_api.h>
 
@@ -32,6 +34,9 @@ namespace espbt = esphome::esp32_ble_tracker;
 // (status/on-off/option); the rest are little-endian integers of that width.
 // VT_BOOL is an 8-bit flag stored as 0 / 0xFF (published as 0 / 1).
 enum ValueType { VT_U8, VT_I8, VT_U16, VT_I16, VT_U32, VT_I32, VT_ENUM, VT_BOOL };
+
+// Enum choices: raw value -> text (from the codebook or the YAML `options:`).
+using EnumMap = std::vector<std::pair<int32_t, const char *>>;
 
 // One appliance object <-> one HA entity. Exactly one of sensor/text_sensor is
 // set for a read-only value; a writable parameter sets `number` (and is polled
@@ -48,9 +53,16 @@ struct RemehaItem {
   number::Number *number{nullptr};   // writable param: read-back is published here too
   binary_sensor::BinarySensor *binary_sensor{nullptr};  // on/off read-only value
   switch_::Switch *switch_{nullptr}; // writable on/off param: read-back is published here too
+  select::Select *select_{nullptr};  // writable enum param: read-back published as its text
+  const EnumMap *enum_map{nullptr};  // text_sensor/select: raw value -> text
   bool has_true_value{false};        // binary_sensor/switch: true = on only when raw == true_value
   uint8_t true_value{1};             //   (false = any non-zero raw value is on)
   bool single{false};                // true = read via individual request (op 0x00), not bulk GetList
+  bool auto_read{false};             // read: auto - start in bulk, switch to single if not returned there
+  // runtime state (not set from YAML)
+  uint8_t miss{0};                   // auto: consecutive GetList replies without this object
+  bool seen{false};                  // auto: value received in the current GetList reply
+  bool missing{false};               // appliance says the object does not exist: no longer polled
 };
 
 // connection state machine
@@ -213,6 +225,25 @@ class RemehaNumber : public number::Number, public Component {
   uint8_t sub_{0};
   ValueType type_{VT_U16};
   float gain_{1.0f};
+};
+
+// Writable enum parameter exposed as a Home Assistant select. The chosen text is
+// mapped back to its raw choice number and written (operation 0x04, 1 byte).
+class RemehaSelect : public select::Select, public Component {
+ public:
+  void set_parent(RemehaConfida *p) { parent_ = p; }
+  void set_node(uint8_t v) { node_ = v; }
+  void set_index(uint16_t v) { index_ = v; }
+  void set_sub(uint8_t v) { sub_ = v; }
+  void set_enum_map(const EnumMap *m) { map_ = m; }
+
+ protected:
+  void control(const std::string &value) override;
+  RemehaConfida *parent_{nullptr};
+  uint8_t node_{1};
+  uint16_t index_{0};
+  uint8_t sub_{0};
+  const EnumMap *map_{nullptr};
 };
 
 // Writable on/off parameter (e.g. a YesNo/OffOn enum) exposed as a Home Assistant

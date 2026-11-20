@@ -15,16 +15,18 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from . import (
-    remeha_ns, RemehaConfida, VALUE_TYPES, READ_MODES,
+    remeha_ns, RemehaConfida, VALUE_TYPES, READ_MODES, read_fields,
     CONF_REMEHA_ID, CONF_NODE, CONF_INDEX, CONF_SUBINDEX, CONF_TYPE, CONF_READ,
     CONF_TRUE_VALUE,
 )
+from .codebook import CONF_CODE, apply_code
 
 DEPENDENCIES = ["remeha_confida"]
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
+CONFIG_SCHEMA = cv.All(apply_code("binary_sensor"), binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_REMEHA_ID): cv.use_id(RemehaConfida),
+        cv.Optional(CONF_CODE): cv.string,
         cv.Optional(CONF_NODE, default=1): cv.hex_uint8_t,
         cv.Required(CONF_INDEX): cv.hex_uint16_t,
         cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
@@ -33,7 +35,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
         cv.Optional(CONF_TRUE_VALUE): cv.int_range(min=0, max=255),
         cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
     }
-)
+))
 
 
 async def to_code(config):
@@ -49,6 +51,6 @@ async def to_code(config):
         ("binary_sensor", sens),
         ("has_true_value", CONF_TRUE_VALUE in config),
         ("true_value", config.get(CONF_TRUE_VALUE, 1)),
-        ("single", config[CONF_READ]),
+        *read_fields(config),
     )
     cg.add(hub.add_item(item))
