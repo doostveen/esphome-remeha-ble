@@ -1,21 +1,21 @@
 # =====================================================================
-#  Remeha met ingebouwde Bluetooth (GTW-22, bv. Confida 40)
-#  START-YAML: eerste flash. Daarna: druk op "Remeha discovery-dump", plak de
-#  DUMP-regels uit de log in de configurator en kies wat je wilt zien.
+#  Remeha via Bluetooth (built-in Bluetooth or GTW-IoT home hub)
+#  START YAML: first flash. Then open http://<esp-ip>/remeha, press
+#  "Scan appliance", pick what you want and flash the YAML you get there.
 # ---------------------------------------------------------------------
-#  Vul in de secrets.yaml van je ESPHome in:
+#  Put these in the secrets.yaml of your ESPHome:
 #     wifi_ssid / wifi_password
-#     remeha_bt_key : het 6-cijferige nummer van de BLE-sticker
-#  De component wordt bij het compileren uit GitHub gehaald (geen token nodig).
-#  Gebruik op eigen risico. Een BLE-verbinding tegelijk: wil je met de app
-#  verbinden, zet dan de schakelaar "Remeha uitlezing" uit.
+#     remeha_bt_key : the 6-digit number on the BLE sticker, in quotes ("012345").
+#  The component is fetched from GitHub when compiling (no token needed).
+#  Use at your own risk. Only one BLE connection at a time: to connect with the app,
+#  switch off "Remeha reading" first.
 # =====================================================================
 
 substitutions:
   device_name: remeha-ble
   friendly_name: "Remeha"
-  # 00:00:00:00:00:00 = automatisch zoeken op naam ("EHC-..."). Heb je meerdere
-  # toestellen, vul dan het MAC in (staat in de log: "BLE gezien: ...").
+  # 00:00:00:00:00:00 = find the appliance automatically (name EHC-... or GTW-IOT...).
+  # With several appliances, fill in the MAC (it is in the log: "BLE gezien: ...").
   ble_mac: "00:00:00:00:00:00"
 
 esphome:
@@ -23,7 +23,7 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
-  board: esp32dev          # pas aan als je een ander ESP32-board hebt
+  board: esp32dev          # change this if you use another ESP32 board
   framework:
     type: esp-idf
 
@@ -48,20 +48,12 @@ external_components:
 
 button:
   - platform: restart
-    name: "Remeha ESP herstart"
+    name: "Remeha ESP restart"
     icon: mdi:restart
-  # Leest eenmalig wat het toestel kan (o.a. de menubeschrijving 0x502B) en zet het
-  # als DUMP-regels in de log. Plak die regels in de configurator.
-  - platform: template
-    name: "Remeha discovery-dump"
-    entity_category: diagnostic
-    icon: mdi:magnify-scan
-    on_press:
-      - lambda: 'id(confida).start_discovery_dump();'
 
 switch:
   - platform: template
-    name: "Remeha uitlezing"
+    name: "Remeha reading"
     icon: mdi:bluetooth
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
@@ -71,7 +63,7 @@ switch:
       - lambda: 'id(confida).set_active(false);'
 
 esp32_ble:
-  io_capability: keyboard_only   # wij leveren de passkey (het stickernummer)
+  io_capability: keyboard_only   # needed to pair with the sticker number
 
 esp32_ble_tracker:
 
@@ -86,21 +78,22 @@ remeha_confida:
   service_uuid: "f8fc98e4-5919-4a5c-852e-dfe04ad383c0"
   write_uuid:   "496b1b03-cebc-4d59-9c32-14ea88c266f9"
   notify_uuid:  "ab9af948-fb86-492d-820d-bdea2dcb7ecf"
-  passkey: !secret remeha_bt_key      # 6-cijferig stickernummer
-  device_name_prefix: "EHC-"
+  # Built-in Bluetooth: pairs with the sticker number. GTW-IoT: no pairing, the
+  # component detects that from the name (then put 000000 in remeha_bt_key).
+  passkey: !secret remeha_bt_key
   write_result:
-    name: "Remeha laatste schrijfresultaat"
+    name: "Remeha last write result"
   reconnect_reason:
-    name: "Remeha laatste herverbind-reden"
+    name: "Remeha last reconnect reason"
   reconnect_count:
-    name: "Remeha herverbindingen"
+    name: "Remeha reconnects"
   appliance:
-    name: "Remeha toestel"
-  # Configurator-pagina op de ESP zelf: open http://<ip-van-de-esp>/remeha,
-  # druk op "Scan toestel" en kies wat je wilt zien. Zet op false om flash te sparen.
+    name: "Remeha appliance"
+  # Configurator page on the ESP itself: open http://<esp-ip>/remeha,
+  # press "Scan appliance" and pick what you want. Set to false to save flash.
   configurator: true
 
-# --- Basisset (preset 'basis'); vervang dit later door de uitvoer van de configurator ---
+# --- Basic set (preset 'basis'); replace this later with the configurator output ---
 sensor:
   - platform: remeha_confida
     code: HM001

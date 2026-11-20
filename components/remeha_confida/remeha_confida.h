@@ -91,11 +91,14 @@ class RemehaConfida : public PollingComponent,
   // Whether the BLE link must be paired/encrypted (LESC passkey). true for the
   // Confida/GTW-22 onboard module; false for the GTW-IoT hub, which accepts a
   // plain connection and runs the gate handshake without any pairing.
-  void set_requires_pairing(bool v) { requires_pairing_ = v; }
+  void set_requires_pairing(bool v) { conn_mode_ = v ? 1 : 2; }
+  // 0 = auto (route from the advertised name: "EHC-" paired, "GTW-IOT" plain),
+  // 1 = always paired (built-in Bluetooth), 2 = always plain (GTW-IoT hub).
+  void set_connection_mode(uint8_t m) { conn_mode_ = m; }
   // Auto-connect by name: if the ble_client MAC is left as 00:00:00:00:00:00,
   // the hub scans and connects to the first device whose advertised name starts
-  // with this prefix (default "EHC-"). With a real MAC filled in, scanning is
-  // skipped and that MAC is used directly.
+  // with this prefix (default: "EHC-" or "GTW-IOT"). With a real MAC filled in,
+  // scanning is skipped and that MAC is used directly.
   void set_name_prefix(const std::string &p) { name_prefix_ = p; }
   void add_item(const RemehaItem &it) { items_.push_back(it); }
   // Optional diagnostic entities (hub-level): last reconnect reason + reconnect count.
@@ -114,7 +117,8 @@ class RemehaConfida : public PollingComponent,
   // scan pauses while the page has not picked up its chunks, so only a few kB are
   // ever held in RAM (holding the whole result at once crashed small ESP32s).
   void request_scan();  // called from the HTTP task
-  std::string scan_poll(int gen, uint16_t from);  // HTTP task: status + chunks >= from (frees older ones of that gen)
+  std::string scan_poll(int gen, uint16_t from);
+  std::string current_json() const;  // HTTP task: what this firmware reads/writes now  // HTTP task: status + chunks >= from (frees older ones of that gen)
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -216,7 +220,10 @@ class RemehaConfida : public PollingComponent,
   bool connected_once_{false};    // so "verbonden" is published on the first RUN entry
   bool active_{true};             // false = released (link dropped, reconnect suppressed)
   // --- auto-connect by name (only when the configured MAC is 0) ---
-  std::string name_prefix_{"EHC-"};  // advertised-name prefix of the appliance
+  std::string name_prefix_;          // advertised-name prefix; empty = "EHC-" or "GTW-IOT"
+  uint8_t conn_mode_{0};             // see set_connection_mode()
+  bool route_logged_{false};
+  uint8_t match_name_(const std::string &name) const;  // 0 no match, 1 built-in (paired), 2 GTW-IoT (plain)
   bool scan_mode_{false};            // true = MAC was 0, discover by name
   bool addr_resolved_{false};        // a matching device was found + address set
   std::set<uint64_t> seen_;          // MACs already logged (log each once)

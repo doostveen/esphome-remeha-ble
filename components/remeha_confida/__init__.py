@@ -91,13 +91,17 @@ CONF_WRITE_UUID = "write_uuid"
 CONF_NOTIFY_UUID = "notify_uuid"
 CONF_PASSKEY = "passkey"
 # Advertised-name prefix used to auto-discover the appliance when the ble_client
-# MAC is left at 00:00:00:00:00:00. Confida/EHC modules advertise as "EHC-...";
-# the GTW-IoT hub advertises as "GTW-IOT_...".
+# MAC is left at 00:00:00:00:00:00. Built-in modules advertise as "EHC-...", the
+# GTW-IoT hub as "GTW-IOT_...". Without this option both are recognised.
 CONF_DEVICE_NAME_PREFIX = "device_name_prefix"
-# Whether the BLE link must be paired/encrypted. True (default) for the
-# Confida/GTW-22 onboard module (LESC passkey). False for the GTW-IoT hub, which
-# accepts a plain connection and runs the gate handshake without any pairing.
+# How to connect: "auto" (default) recognises the route from the advertised name:
+# "EHC-..." = built-in Bluetooth (GTW-22), paired with the sticker passkey;
+# "GTW-IOT..." = GTW-IoT hub, plain connection without pairing.
+# "paired" / "plain" force one of the two.
+CONF_CONNECTION = "connection"
+# Older option, still accepted: true = connection: paired, false = connection: plain.
 CONF_REQUIRES_PAIRING = "requires_pairing"
+CONNECTION_MODES = {"auto": 0, "paired": 1, "plain": 2}
 
 # Optional hub-level DIAGNOSTIC entities (not tied to any appliance object):
 #  - reconnect_reason: text_sensor showing WHY the link last reconnected
@@ -160,9 +164,10 @@ CONFIG_SCHEMA = (
             # The number on the sticker (the BLE pairing passkey). Quote it in secrets.yaml.
             cv.Optional(CONF_PASSKEY): _passkey,
             # Auto-discovery name prefix (used only when the ble_client MAC is 0).
-            cv.Optional(CONF_DEVICE_NAME_PREFIX, default="EHC-"): cv.string,
-            # Pair/encrypt the BLE link (True) or connect plain (False, GTW-IoT).
-            cv.Optional(CONF_REQUIRES_PAIRING, default=True): cv.boolean,
+            cv.Optional(CONF_DEVICE_NAME_PREFIX): cv.string,
+            # auto (default) / paired (built-in Bluetooth) / plain (GTW-IoT).
+            cv.Optional(CONF_CONNECTION): cv.one_of(*CONNECTION_MODES, lower=True),
+            cv.Optional(CONF_REQUIRES_PAIRING): cv.boolean,
             cv.Optional(CONF_RECONNECT_REASON): core_text_sensor.text_sensor_schema(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 icon="mdi:bluetooth-connect",
@@ -208,8 +213,12 @@ async def to_code(config):
     cg.add(var.set_notify_uuid(config[CONF_NOTIFY_UUID]))
     if CONF_PASSKEY in config:
         cg.add(var.set_passkey(config[CONF_PASSKEY]))
-    cg.add(var.set_name_prefix(config[CONF_DEVICE_NAME_PREFIX]))
-    cg.add(var.set_requires_pairing(config[CONF_REQUIRES_PAIRING]))
+    if CONF_DEVICE_NAME_PREFIX in config:
+        cg.add(var.set_name_prefix(config[CONF_DEVICE_NAME_PREFIX]))
+    mode = config.get(CONF_CONNECTION)
+    if mode is None and CONF_REQUIRES_PAIRING in config:
+        mode = "paired" if config[CONF_REQUIRES_PAIRING] else "plain"
+    cg.add(var.set_connection_mode(CONNECTION_MODES[mode or "auto"]))
     if CONF_RECONNECT_REASON in config:
         ts = await core_text_sensor.new_text_sensor(config[CONF_RECONNECT_REASON])
         cg.add(var.set_reason_sensor(ts))

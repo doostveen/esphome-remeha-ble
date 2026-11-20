@@ -20,7 +20,8 @@ bool RemehaConfigurator::canHandle(AsyncWebServerRequest *request) const {
   if (request->method() != HTTP_GET) return false;
   char buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(buf);
-  return url == "/remeha" || url == "/remeha/" || url == "/remeha/scan" || url == "/remeha/data.json";
+  return url == "/remeha" || url == "/remeha/" || url == "/remeha/scan" || url == "/remeha/data.json" ||
+         url == "/remeha/current.json";
 }
 
 void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
@@ -30,6 +31,14 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
     AsyncWebServerResponse *res =
         request->beginResponse(200, "text/html; charset=utf-8", REMEHA_CONFIGURATOR_GZ, sizeof(REMEHA_CONFIGURATOR_GZ));
     res->addHeader("Content-Encoding", "gzip");
+    request->send(res);
+    return;
+  }
+  if (url == "/remeha/current.json") {
+    std::string j = hub_->current_json();
+    AsyncWebServerResponse *res = request->beginResponse(
+        200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());
+    res->addHeader("Cache-Control", "no-store");
     request->send(res);
     return;
   }

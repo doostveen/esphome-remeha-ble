@@ -1,406 +1,195 @@
-# Remeha Confida uitlezen met een ESP32 (ESPHome)
+**English** | [Nederlands](README.nl.md) | [Deutsch](README.de.md)
 
-Lees een Remeha Confida (EHC-regelaar) live uit in **Home Assistant** via
-**Bluetooth** — **geen GTW-08-gateway nodig**, geen cloud. Een ESP32 met ESPHome
-praat de BLE-taal van het toestel: het koppelt via Bluetooth, en zet temperaturen,
-druk, debiet, COP, vermogens, tellers en storingen door naar Home Assistant. Een
-aantal parameters (stooklijn, drukwaarschuwing) is ook in te stellen.
+# ESPHome Remeha BLE
 
-Werkt met verschillende Bluetooth-routes van Remeha: de **ingebouwde GTW-22-module**
-(bv. Confida 40) én de **GTW-IoT home-hub** (bv. Confida 10).
+Read and control a **Remeha** heat pump or boiler from **Home Assistant** over
+**Bluetooth**, with an ESP32 running ESPHome. No gateway, no cloud: the ESP talks the
+appliance's own Bluetooth protocol and passes temperatures, pressures, flow, power, COP,
+counters and status to Home Assistant. Settings such as the heating curve can be changed
+as well.
 
-Mogelijk werkt het ook met **andere Remeha-toestellen met Bluetooth** die hetzelfde
-protocol spreken, zoals andere warmtepompen met een EHC-regelaar. Dat is niet getest.
-Het codeboek in [`data/`](data/README.md) bevat de objecten van alle toestellen die dit
-protocol gebruiken.
+What you see is up to you: the ESP scans what **your** appliance offers and a built-in
+web page, the **configurator**, turns your choice into a complete ESPHome YAML.
 
-Gebruik op eigen risico.
+- Works with both Bluetooth routes Remeha uses: the **built-in Bluetooth** module
+  (advertises as `EHC-...`, e.g. Confida 40) and the **GTW-IoT home hub** (advertises as
+  `GTW-IOT_...`, e.g. Confida 10). The component recognises the route by itself.
+- Tested on a Remeha Confida 40. Other Remeha appliances that speak the same protocol
+  (EHC controller) are expected to work; please report your experience in an issue.
+- Use at your own risk. This project is not affiliated with Remeha.
 
-## Welk toestel, welke YAML?
+<!-- SCREENSHOT: the configurator on the ESP (docs/images/configurator.png) -->
 
-Remeha biedt Bluetooth op twee manieren aan. Beide gebruiken dezelfde component
-(`components/`); alleen de YAML verschilt.
+## What you need
 
-| | Confida 40 (e/h) | Confida 10 |
-|---|---|---|
-| Bluetooth via | ingebouwde **GTW-22**-module (op X8) | de **GTW-IoT** home-hub |
-| Adverteert als | `EHC-…` | `GTW-IOT_<serienummer>` |
-| Koppelen | 6-cijferige **passkey van de sticker** | **geen** passkey of sticker; kort op de knop van de hub drukken |
-| YAML | `remeha-confida.yaml` | `remeha-confida-gtwiot.yaml` |
+- An **ESP32** board (default `esp32dev`; change the board in the YAML if you use
+  another one). An ESP8266 has no Bluetooth LE and does not work.
+- **ESPHome** 2026.10 or newer (standalone or the Home Assistant add-on).
+- For the built-in Bluetooth: the **6-digit number on the BLE sticker** of your appliance
+  (the pairing passkey). The GTW-IoT hub needs no number.
 
-Twijfel je welke route jouw toestel gebruikt? Doe een
-[nRF Connect](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp)-scan
-naast het toestel: zie je `EHC-…`, neem dan `remeha-confida.yaml`; zie je
-`GTW-IOT_…`, neem dan `remeha-confida-gtwiot.yaml`.
+## Quick start
 
-## In de huidige ESPHome-Yaml
+1. **Secrets.** Add to the `secrets.yaml` of your ESPHome (see
+   [`secrets.yaml.example`](secrets.yaml.example)):
+   ```yaml
+   wifi_ssid: "YourWifi"
+   wifi_password: "YourWifiPassword"
+   remeha_bt_key: "012345"   # sticker number, in quotes; GTW-IoT: "000000"
+   ```
+   Keep the quotes: without them YAML reads a number with a leading zero as octal.
+2. **First flash.** Create a new device in ESPHome with the contents of
+   [`remeha-start.yaml`](remeha-start.yaml) and install it. The component is fetched
+   from GitHub automatically. The ESP finds the appliance by itself, pairs and shows a
+   basic set of values.
+   GTW-IoT: press the button on the hub briefly so it accepts a connection.
+3. **Configurator.** Open `http://<esp-ip>/remeha` in your browser and press
+   **Scan appliance**. Within about half a minute the ESP reads which objects your
+   appliance has, including the limits the appliance itself reports.
+4. **Choose and flash.** Tick what you want to read and what you want to be able to
+   change, copy the YAML, replace the start YAML in ESPHome with it and install again.
 
-- **sensoren** — zoals aanvoer/retour, buitentemperatuur, waterdruk, debiet, COP,
-  elektrisch en thermisch vermogen, compressor- en ventilatortoerental, modulatie,
-  pompstanden en de status van de buitenunit.
-- **aan/uit-waarden** (`binary_sensor`): of de pomp en de compressor draaien, of de
-  buitenunit ontdooit, of de vorstbeveiliging actief is en of de warmtepomp in storing
-  staat.
-- **Tellers** (`total_increasing`) — energieverbruik en -levering, productie-uren,
-  starts en ontdooicycli.
-- **instelbare parameters** (`number`) — o.a. stooklijn (voetpunt, helling,
-  max. aanvoer, ruimte-invloed) en de lagedrukwaarschuwing.
-- **Storingsstatus** — of de warmtepomp in storing staat (HM007). De volledige
-  fouthistorie (`H{categorie}.{nummer}`) zit wél in het protocol (zie
-  [`docs/readme.md`](docs/readme.md)), maar deze YAML leest alleen de status uit.
-- **Diagnose** — laatste schrijfresultaat, herverbindreden en -teller.
-- Een **schakelaar** om de uitlezing tijdelijk los te laten en een **herstartknop**.
+## The configurator
 
-### Zelf een sensor of parameter toevoegen
+<!-- SCREENSHOT: choosing values (docs/images/configurator-choose.png) -->
 
-Een waarde toevoegen is **alleen YAML-werk** — je hoeft de component (C++) niet aan
-te raken. De lijst hierboven is maar een selectie; het toestel kent duizenden
-objecten.
+The page at `http://<esp-ip>/remeha` is served by the ESP itself.
 
-### De snelle manier: alleen de code
+- **Scan appliance** reads the menu description of the appliance (object 0x502B): every
+  object it offers, with minimum, maximum, step and access level. Read only, nothing is
+  written.
+- **Read** puts a value in Home Assistant as a sensor. **Adjustable** (orange) adds a
+  control that changes a real setting of the appliance; it is only offered for settings
+  that can be written.
+- **Quick select** buttons tick a group at once: Basic, Energy, Outdoor unit, Room,
+  Heating curve.
+- Objects with several elements (per zone, per activity, per producer) are shown on one
+  row with a **+** to show the elements.
+- **Search and filters** by code, name, group, type and level.
+- **Start from your current choice:** *Use the choice of this ESP* ticks what the
+  firmware reads now; *Read a YAML* takes over the remeha_confida entities from a YAML
+  you paste, including names you gave yourself.
+- **Languages:** English, Dutch and German. The language also sets the entity names and
+  choice texts in the YAML you get.
+- **Warn when this YAML runs on a different type of appliance:** puts the article number
+  of the scanned appliance in the YAML. If you later connect the ESP to another type,
+  the log says so and the *Remeha appliance* entity shows it.
 
-Sinds de `dev`-versie kent de component het codeboek zelf. Je hoeft dan alleen de code
-op te geven (kolom "App-code" in het codeboek). Index, subindex, datatype, gain, eenheid,
-weergaveklasse en een Nederlandse naam worden automatisch ingevuld:
+The configurator is switched on with `configurator: true` under `remeha_confida:` and
+needs `web_server:`. It takes about 140 kB of flash; set it to `false` once you are done
+if you need the space.
 
-```yaml
-sensor:
-  - platform: remeha_confida
-    code: HM001              # Aanvoertemperatuur van warmtepomp
-  - platform: remeha_confida
-    code: HM116
-    name: "Hogedruk"         # alles wat je zelf invult, gaat voor
+## The YAML in short
 
-text_sensor:
-  - platform: remeha_confida
-    code: AM012              # keuzelijst als tekst, bv. "Warmtevraag"
-
-select:
-  - platform: remeha_confida
-    code: CP780              # instelbare keuzelijst met teksten (Regelstrategie)
-
-number:
-  - platform: remeha_confida
-    code: CP230              # Hellingshoek stooklijn
-```
-
-- **Welk platform?** `sensor` voor getallen, `text_sensor` voor een keuzelijst als tekst of
-  een tekstwaarde, `binary_sensor` voor aan/uit, `number` voor een instelbaar getal,
-  `select` voor een instelbare keuzelijst en `switch` voor een instelbare aan/uit-waarde.
-  Kies je een platform dat niet past (bijvoorbeeld een meetwaarde als `number`), dan meldt
-  ESPHome dat bij het valideren.
-- **Lezen gaat automatisch goed.** Met `code:` staat `read` standaard op `auto`: de
-  component probeert eerst de snelle bulk-lijst en leest het object los uit als het toestel
-  het daar niet teruggeeft. Bestaat een object niet op jouw toestel, dan staat dat in de log
-  en wordt het niet meer opgevraagd.
-- **Grenzen uit het toestel.** Na het verbinden leest de component de menubeschrijving
-  van het toestel (object 0x502B). Daarin staan per instelling het echte minimum, maximum
-  en de stapgrootte. Een `number` neemt die over (ook als je zelf `min_value`/`max_value`
-  hebt gezet) en bewaart ze in het flashgeheugen; Home Assistant ziet ze na de eerstvolgende
-  herstart of herverbinding. Een waarde buiten die grenzen wordt niet geschreven. Bij een
-  `select` worden keuzes die het toestel niet toestaat geweigerd. Wil je dit voor een
-  `number` niet, zet dan `device_limits: false`.
-- Een paar codes komen dubbel voor in het codeboek; gebruik daarvoor `index:`.
-
-De uitgebreide manier hieronder (met `index:`, `value_type:` enzovoort) blijft werken.
-
-### De configurator: kies uit wat jouw toestel kan
-
-De makkelijkste route, zeker voor een ander toestel dan de Confida 40:
-
-1. **Flash de start-YAML**: [`remeha-start.yaml`](remeha-start.yaml) (ingebouwde Bluetooth
-   met sticker) of [`remeha-start-gtwiot.yaml`](remeha-start-gtwiot.yaml) (GTW-IoT). Die
-   verbindt, toont een basisset en zet de configurator op de ESP aan.
-2. **Open `http://<ip-van-de-esp>/remeha`** in je browser (of klik in ESPHome op "Visit"
-   en zet `/remeha` achter het adres) en druk op **Scan toestel**. De ESP leest in een halve
-   minuut uit welke objecten jouw toestel heeft, met de grenzen die het toestel zelf opgeeft.
-3. **Kies** per object `lezen` of `instelbaar`, of vink met één knop een groep aan
-   (Basis, Energie, Buitenunit, Ruimte, Stooklijn).
-4. **Kopieer de YAML**, zet die in ESPHome in plaats van de start-YAML en klik op Install.
-   (De ESP kan zichzelf niet opnieuw flashen: ESPHome bouwt de firmware.)
-
-De configurator op de ESP staat aan met `configurator: true` onder `remeha_confida:` en
-heeft `web_server:` nodig. Hij kost ongeveer 70 kB flash; zet hem op `false` als je die
-ruimte nodig hebt. Werkt vanaf ESPHome 2026.10.
-
-Zonder configurator op de ESP kan het ook: druk op **Remeha discovery-dump**, wacht op
-`DUMP klaar` in de log en plak de log in de losse pagina
-[`configurator/index.html`](configurator/index.html) (downloaden en in je browser openen).
-De dump bevat serienummers; die pagina verwerkt alles in je eigen browser en verstuurt niets.
-
-### Presets: kant-en-klare sets
-
-In de map [`presets/`](presets/) staan sets entiteiten (alle met `code:`) die je in één
-regel aan je YAML toevoegt:
-
-| preset | inhoud |
-|---|---|
-| `basis` | temperaturen, waterdruk en -debiet, vermogen, COP, status als tekst, aan/uit-waarden |
-| `energie` | energietellers en draaiuren |
-| `buitenunit` | buitenunit, koudemiddelcircuit, compressor en ontdooien |
-| `ruimte` | ruimtetemperaturen en gewenste temperatuur |
-| `stooklijn` | **instellingen** van stooklijn en groep (`number` en `select`) |
-
-```yaml
-packages:
-  basis: github://mcc-tweakers/esphome-remeha-ble/presets/basis.yaml@main
-  buitenunit: github://mcc-tweakers/esphome-remeha-ble/presets/buitenunit.yaml@main
-```
-
-Gebruik de presets in een nieuwe configuratie, of haal dezelfde entiteiten eerst uit je eigen
-YAML: twee entiteiten met dezelfde naam geven een foutmelding.
-
-### Welk toestel hangt er?
-
-Na het verbinden leest de component het artikelnummer (0x2000:09) en de interne naam
-(0x3047) van het toestel en zet die in de log, bijvoorbeeld
-`toestel: Remeha Confida 40 (7887477) (interne naam 'IDU2WH')`. Met een diagnose-entiteit
-zie je het ook in Home Assistant:
+The configurator writes the whole file, but it helps to know what is in it.
 
 ```yaml
 remeha_confida:
-  # ...
+  id: confida
+  ble_client_id: confida_client
+  passkey: !secret remeha_bt_key   # built-in Bluetooth; ignored for the GTW-IoT
   appliance:
-    name: "Remeha toestel"
-  expected_article_number: 7887477   # optioneel: waarschuwing in de log bij een ander toestel
+    name: "Remeha appliance"       # recognised appliance (article number and name)
+  configurator: true               # page at http://<esp-ip>/remeha
+
+sensor:
+  - platform: remeha_confida
+    code: HM001                    # flow temperature heat pump
+  - platform: remeha_confida
+    code: HM116
+    name: "High pressure"          # anything you set yourself wins
+
+number:
+  - platform: remeha_confida
+    code: CP230                    # heating curve slope (changes the appliance!)
 ```
 
-Wordt je toestel als "artikelnummer ..." getoond in plaats van met een naam, geef het nummer
-dan door via een issue; dan nemen we het op.
+- **`code:`** is the appliance code from the codebook (for example `HM001`). Index,
+  subindex, data type, scaling, unit, Home Assistant classes and a name are filled in
+  automatically.
+- **Which platform?** `sensor` for numbers, `text_sensor` for a choice list shown as
+  text, `binary_sensor` for on/off, `number` for an adjustable number, `select` for an
+  adjustable choice list, `switch` for an adjustable on/off value. ESPHome reports it
+  when a platform does not fit the object.
+- **`subindex:`** selects an element of an array object (zone, producer); **`node:`**
+  another board in the appliance (1 = controller, 4 = extension board).
+- **Limits from the appliance:** a `number` takes over the real minimum, maximum and step
+  from the appliance and refuses values outside them; a `select` refuses choices the
+  appliance does not allow. Use `device_limits: false` on a `number` to switch this off.
+- **Objects without a code** can be added with `index:`, `subindex:` and
+  `value_type:`; see the codebook in [`data/`](data/README.md).
 
-**Stap 1 — zoek het object op.** Gebruik het codeboek
-`data/Remeha_parametercodeboek.xlsx`, tabblad **"Parameters"**: alle objecten van het
-protocol, met Nederlandse namen. Zoek op de code (bv. `HM001`) of op een trefwoord in
-de naam. Niet elk object bestaat op elk toestel; kijk na het toevoegen in de log of
-jouw toestel een geldige waarde teruggeeft. Heb je een Confida 40, filter dan op de kolom
-**"Bevestigd op Confida 40"**: die objecten zijn op dat toestel bevestigd. De kolommen
-vertalen direct naar YAML-velden:
+### Connection options
 
-| kolom in het codeboek | YAML-veld |
+| option | meaning |
 |---|---|
-| CANopen index | `index` (zet er `0x` voor) |
-| Sub | `subindex` (arrays: waarde op `1`) |
-| Datatype | `value_type` (in kleine letters) |
-| Gain | `gain` |
-| Eenheid | `unit_of_measurement` |
-| Soort | `Parameter` = instelbaar (`number`); `Signal`/`Counter` = alleen lezen (`sensor`) |
-| Uitlezen | `read` (`bulk` of `single`) |
-| Toegestane waarden (NL) | enkel bij `value_type: enum` |
+| `passkey` | the sticker number (built-in Bluetooth) |
+| `connection` | `auto` (default): recognise the route by the advertised name; `paired` or `plain` to force it |
+| `device_name_prefix` | only connect to a device whose name starts with this (default: `EHC-` or `GTW-IOT`) |
+| `ble_mac` (substitution) | `00:00:00:00:00:00` finds the appliance automatically; with several appliances in range, fill in the MAC from the log (`BLE gezien: ...`) |
+| `expected_article_number` | warn when the connected appliance is a different type |
+| `update_interval` | how often values are read (default 30 s) |
 
-De kolom **"Soort"** bepaalt of een object een instelling of een meetwaarde is, en
-daarmee of het onder `sensor:` of `number:` hoort:
+Diagnostic entities: `write_result` (last write, accepted or refused with reason),
+`reconnect_reason` and `reconnect_count`.
 
-- **`Parameter`** — een echte instelling. Als je 'm wilt kunnen wijzigen: zet 'm onder
-  `number:`. Wil je 'm alleen tonen: zet 'm als `sensor:` (dan schrijf je niets naar
-  het toestel). Een `number` schrijft een echte waarde naar het toestel, dus wees
-  voorzichtig.
-- **`Signal`** — een live meetwaarde (temperatuur, druk, toerental…). Altijd `sensor:`,
-  meestal met `state_class: measurement`.
-- **`Counter`** — een oplopende teller (energie, uren, starts). `sensor:` met
-  `state_class: total_increasing`.
+### The "Remeha reading" switch
 
-**Aan/uit-waarden.** Staat in de kolom "Enum" `YesNo`, `OffOn` of `InactiveActive`,
-dan is het een aan/uit-waarde. Zet die onder `binary_sensor:` (alleen lezen) of, als
-het een instelbare `Parameter` is, onder `switch:`. In Home Assistant krijg je dan
-aan/uit in plaats van 0/1, wat handiger is in automatiseringen.
+Only **one** Bluetooth connection to the appliance is possible at a time. Switch
+*Remeha reading* off to let the ESP release the connection and stop reconnecting, so a
+phone app or service tool can connect. Switch it on again to resume. After a restart it
+is on.
 
-**Stap 2 — zet het blok in de YAML**, onder `sensor:` of `binary_sensor:` (alleen
-lezen), of onder `number:` of `switch:` (instelbaar).
+## Changing settings: be careful
 
-Sensor toevoegen (onder `sensor:`):
+An adjustable entity (`number`, `select`, `switch`) changes a **real setting** of the
+appliance. Only use it if you know what the setting does. After every write the ESP
+reads the value back, so the entity shows what the appliance really has. A refused write
+shows up in the *last write result* entity with the reason.
 
-```yaml
-  - platform: remeha_confida
-    name: "Aanvoertemperatuur van warmtepomp (HM001)"
-    index: 0x4301          # kolom "CANopen index", met 0x ervoor
-    value_type: i16        # kolom "Datatype" in kleine letters (u8/i8/u16/i16/u32/i32/enum/bool)
-    gain: 0.01             # kolom "Gain": ruwe waarde × gain = de echte waarde (leeg in het codeboek = 1)
-    unit_of_measurement: "°C"   # kolom "Eenheid"
-    device_class: temperature   # HA-weergaveklasse (temperature/pressure/power/energy/…), niet van het toestel
-    state_class: measurement    # measurement = momentane waarde; total_increasing = teller
-    accuracy_decimals: 1        # aantal decimalen in HA (stem af op de gain)
-    icon: mdi:thermometer       # vrij te kiezen mdi-icoon
-```
+## Troubleshooting
 
-Velden die je meestal weglaat: `subindex:` (standaard 0; bij array-objecten zet je
-`subindex: 1` voor de actieve zone/teller), `node:` (standaard 1; andere module →
-zie de node-map in `docs/readme.md`) en `read:` (standaard `bulk`; zet `single`
-voor losse scalars die níet in de bulk-GetList zitten — zie de kolom "Uitlezen").
+- **Pairing fails / "auth fail":** almost always a wrong passkey. Check `remeha_bt_key`
+  and the quotes. The start-up log shows `passkey ****xx` with the last two digits.
+- **After a wrong passkey it keeps failing:** the appliance blocks new attempts for
+  60 s. The component waits longer each time (90 s, 3, 5, 10 min). Be patient instead of
+  restarting.
+- **GTW-IoT is not found:** press the button on the hub briefly and make sure the Remeha
+  app is not connected at the same time. The log shows
+  `route herkend aan de naam: GTW-IoT (zonder koppelen)` when it is recognised.
+- **A phone cannot connect:** the ESP is connected. Switch *Remeha reading* off.
+- **Built-in Bluetooth remembers 3 devices:** pairing a fourth makes it forget the oldest.
+- **A value stays empty:** not every object exists on every appliance. Objects the
+  appliance does not know are reported once in the log and then no longer requested.
 
-Instelbare parameter toevoegen (onder `number:`):
+The component logs in Dutch; the messages are short and searchable.
 
-```yaml
-  - platform: remeha_confida
-    name: "Waarschuwing dat druk laag is (AP058)"
-    index: 0x302B          # kolom "CANopen index", met 0x ervoor
-    value_type: u8         # kolom "Datatype" in kleine letters
-    gain: 0.1              # kolom "Gain"
-    unit_of_measurement: "bar"  # kolom "Eenheid"
-    device_class: pressure      # HA-weergaveklasse
-    read: single           # kolom "Uitlezen": losse schrijfbare scalars vaak 'single'; zone-/stooklijnobjecten (0x34xx) 'bulk'
-    min_value: 0.3         # alleen HA-UI-grens (NIET op de draad afgedwongen) — kies realistisch of de technische type-range
-    max_value: 3.0         # idem
-    step: 0.1              # stapgrootte in de HA-interface
-    mode: box              # HA-invoerstijl: 'box' (invoerveld) of 'slider'
-    entity_category: config     # toont 'm bij de configuratie-entiteiten in HA
-    icon: mdi:gauge-low
-```
+## How it works
 
-Een `number` wordt óók meegepolld, zodat de entiteit de werkelijke, teruggelezen
-toestelwaarde toont — niet alleen de laatst geschreven waarde. Voor **enum**-waarden
-zet je `value_type: enum`; de toegestane keuzes staan in de kolom "Toegestane
-waarden (NL)" of in het tabblad **"Enums"** van het codeboek.
+Pairing, the two challenge/response gates, the frame format and the read and write
+operations are described in [`docs/readme.md`](docs/readme.md) (Dutch). The codebook with
+all objects, choice lists and error codes is in [`data/`](data/README.md).
 
-> Een `number` wijzigt een **echte toestelinstelling**. Twijfel je, maak er dan een
-> alleen-lezen `sensor` van (zelfde velden, onder `sensor:`).
-
-Aan/uit-waarde toevoegen (onder `binary_sensor:`):
-
-```yaml
-  - platform: remeha_confida
-    name: "Draait de pomp? (AM015)"
-    index: 0x5012          # kolom "CANopen index", met 0x ervoor
-    device_class: running  # optioneel: HA-weergaveklasse (running/problem/heat/...)
-    entity_category: diagnostic
-    icon: mdi:pump
-```
-
-Je hoeft geen `value_type` of `gain` op te geven. Elke waarde die niet 0 is, telt als
-"aan". Dat werkt voor YesNo/OffOn-enums (0/1) en voor statusvlaggen (0/0xFF). Wil je
-dat alleen één bepaalde waarde als "aan" telt, zet dan `true_value:` (bijvoorbeeld
-`true_value: 2`). Omdraaien kan met het standaardfilter `filters: [invert]`.
-
-Instelbare aan/uit-parameter toevoegen (onder `switch:`):
-
-```yaml
-  - platform: remeha_confida
-    name: "Mijn aan/uit-instelling"
-    index: 0x....          # kolom "CANopen index"; kolom "Soort" moet Parameter zijn
-    read: single           # kolom "Uitlezen"
-    entity_category: config
-```
-
-Aan schrijft `1` naar het toestel, uit schrijft `0`. Gebruikt het toestel een andere
-waarde voor "aan", zet dan `true_value:`. Net als een `number` wordt een `switch`
-meegepolld, zodat hij de werkelijke stand van het toestel toont. Bij het opstarten van
-de ESP schrijft een `switch` niets.
-
-> Ook een `switch` wijzigt een **echte toestelinstelling**.
-
-## Benodigdheden
-
-- Een **ESP32** (standaard `esp32dev`; pas het board aan in de YAML als je iets
-  anders hebt). BLE moet aanstaan, dus geen ESP8266.
-- **ESPHome** (los, of via de Home Assistant-add-on).
-- **GTW-22-route:** het **6-cijferige nummer van de BLE-sticker** op je Confida
-  (de pairing-passkey). **GTW-IoT-route:** niets extra's.
-
-## Installatie
-
-1. Zet de juiste YAML (zie de tabel hierboven) en de map `components/` samen in je
-   ESPHome-config.
-2. Maak een `secrets.yaml` aan (zie `secrets.yaml.example`) met je wifi-gegevens.
-   Gebruik je de **GTW-22-route**, zet er dan ook `remeha_bt_key` in — het
-   stickernummer. **Zet het tussen aanhalingstekens** als het met een nul begint,
-   anders leest YAML het als octaal:
-   ```yaml
-   remeha_bt_key: "012345"
-   ```
-3. Compileer en flash. Standaard hoef je **geen MAC in te vullen** — zie hieronder.
-4. Koppelen: zorg dat er op dat moment **geen** andere BLE-verbinding met het toestel
-   actief is (bv. een telefoon-app — zie "De schakelaar 'Remeha uitlezing'").
-   - **GTW-22:** bij de eerste keer koppelen voert de ESP de passkey zelf in; je
-     hoeft niets te typen.
-   - **GTW-IoT:** druk kort op de knop van de hub zodat die verbindbaar wordt. De
-     ESP verbindt daarna vanzelf; het lampje van de hub blijft blauw zolang de
-     verbinding staat.
-
-## Automatisch verbinden (of een vast MAC)
-
-Laat `ble_mac` onder `substitutions` op `00:00:00:00:00:00` staan: de ESP zoekt dan
-zelf naar een toestel waarvan de naam begint met de ingestelde prefix (`EHC-` in
-`remeha-confida.yaml`, `GTW-IOT` in `remeha-confida-gtwiot.yaml`) en verbindt met
-het eerste dat hij vindt. Elk gezien BLE-apparaat verschijnt éénmalig in de
-ESPHome-log:
+## Folder layout
 
 ```
-[remeha_confida] BLE gezien: 00:80:E1:AA:BB:CC  naam='EHC-16'  rssi=-62
-[remeha_confida] Confida gevonden: EHC-16 (00:80:E1:AA:BB:CC) - verbinden
+remeha-start.yaml           first flash: connects, basic set, configurator on
+components/remeha_confida/  the ESPHome external component
+presets/                    groups for the quick select buttons (also usable as packages)
+data/                       codebook: objects, choice lists, error codes, translations
+docs/readme.md              protocol description
+tools/                      scripts that build codebook.json and the configurator page
+secrets.yaml.example        example secrets.yaml
+CHANGELOG.md                changes per version
+LICENSE                     MIT licence
 ```
 
-Heb je **meerdere** toestellen in bereik, lees dan het juiste MAC uit die log af en
-zet het bij `ble_mac` in de YAML; dan verbindt de ESP altijd met dat ene toestel en
-slaat het scannen over. Het MAC vind je ook met een
-[nRF Connect](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp)-scan.
-De naam-prefix is desgewenst aan te passen met `device_name_prefix` onder
-`remeha_confida`.
+## Changes
 
-## De schakelaar "Remeha uitlezing"
+See [CHANGELOG.md](CHANGELOG.md).
 
-Er mag maar **één** BLE-centrale tegelijk verbonden zijn. Zet de schakelaar op **UIT**
-om de ESP de verbinding te laten loslaten en te laten stoppen met herverbinden, zodat
-een telefoon of installateur kan verbinden. **AAN** = weer uitlezen. Na een
-herstart staat hij standaard aan.
+## Licence
 
-## Parameters schrijven — let op
-
-De `number`-entiteiten wijzigen **echte toestelinstellingen**. Gebruik ze alleen als
-je weet wat je doet. De `min`/`max`/`step` in de YAML zijn enkel grenzen voor de
-Home Assistant-interface; het toestel weigert een ongeldige waarde zelf (je ziet dan
-een melding in de sensor "laatste schrijfresultaat"). Na een wijziging leest de ESP
-de waarde terug, zodat de entiteit de werkelijke toestelwaarde toont.
-
-## Problemen oplossen
-
-- **Komt niet voorbij het koppelen / "auth fail" (GTW-22):** bijna altijd een
-  verkeerde passkey. Controleer `remeha_bt_key` (het stickernummer) en de
-  aanhalingstekens. In de opstartlog zie je `passkey: ****xx` — de laatste twee
-  cijfers ter controle.
-- **GTW-IoT wordt niet gevonden of verbindt niet:** druk kort op de knop van de
-  hub om hem verbindbaar te maken, en controleer dat de Remeha-app niet tegelijk
-  verbonden is. In de opstartlog moet `pairing=NEE (GTW-IoT, plain connect)` staan;
-  staat daar `ja`, dan gebruik je de verkeerde YAML.
-- **"Repeated Attempts" / blijft falen:** na een verkeerde pincode is de gateway
-  **60 s niet beschikbaar**. De component wacht daarom oplopend (90 s → 3 → 5 → 10 min)
-  voor een nieuwe poging; even geduld, niet handmatig blijven herstarten.
-- **Een telefoon kan niet verbinden:** de ESP is verbonden. Zet "Remeha uitlezing" uit.
-- **Een sensor blijft leeg terwijl de index klopt:** veel objecten zijn arrays — de
-  waarde staat dan op `subindex: 1` (of 2), niet op 0.
-- **Maximaal 3 gekoppelde apparaten (GTW-22):** koppel je een 4e, dan vergeet de
-  gateway het oudste. Koppel de ESP dus bij voorkeur als laatste.
-- **Sensoren blijven leeg op een Confida 10:** de sensorenlijst is afgestemd op de
-  Confida 40; niet elk object bestaat op elk toestel. Lege sensoren kun je uit de
-  YAML weghalen.
-
-## Hoe het werkt
-
-De volledige technische beschrijving — pairing, de twee challenge/response-gates,
-het frameformaat en de lees-/schrijfoperaties — staat in
-[`docs/readme.md`](docs/readme.md). Genoeg om het protocol en de component van
-binnen te begrijpen.
-
-## Mapindeling
-
-```
-remeha-confida.yaml         ESPHome-config voor de GTW-22-route (met passkey)
-remeha-confida-gtwiot.yaml  ESPHome-config voor de GTW-IoT-route (zonder passkey)
-components/remeha_confida/  de external component (C++/Python-driver), voor beide
-docs/readme.md              technische protocolreferentie
-presets/                    kant-en-klare sets entiteiten (basis, energie, buitenunit, ruimte, stooklijn)
-remeha-start.yaml           eerste flash met basisset en dump-knop (GTW-22)
-remeha-start-gtwiot.yaml    idem voor de GTW-IoT
-configurator/index.html     configurator: dump inlezen, kiezen, YAML maken (werkt offline)
-tools/                      scripts die codebook.json en de configurator bouwen
-data/                       codeboek: alle objecten, enums en foutcodes
-secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
-LICENSE                     MIT-licentie
-CHANGELOG.md                wijzigingen per versie
-```
-
-## Licentie
-
-De code valt onder de [MIT-licentie](LICENSE): je mag hem vrij gebruiken, aanpassen en
-delen, zolang de licentietekst erbij blijft. Gebruik is op eigen risico, zonder garantie.
-
-Het codeboek in [`data/`](data/README.md) is naslag zonder garantie. Het is niet officieel
-en niet afkomstig van of goedgekeurd door Remeha. Merknamen zijn van hun eigenaars.
+The code is under the [MIT licence](LICENSE). The codebook in [`data/`](data/README.md)
+is a reference without any guarantee; it is not official and not made or approved by
+Remeha. Brand names belong to their owners.

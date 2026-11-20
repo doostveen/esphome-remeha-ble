@@ -196,6 +196,9 @@ void RemehaConfida::setup() {
   // BLE security params only matter when we pair (Confida/GTW-22). The GTW-IoT
   // hub accepts a plain, unencrypted connection, so we configure no passkey/bond
   // and never request encryption (see ESP_GATTC_OPEN_EVT).
+  // auto starts as "paired" (built-in Bluetooth is the common case); a GTW-IoT
+  // name in the advertisement switches it to plain before connecting.
+  requires_pairing_ = (conn_mode_ != 2);
   if (requires_pairing_) {
     esp_ble_auth_req_t auth = ESP_LE_AUTH_REQ_SC_MITM_BOND;
     esp_ble_io_cap_t iocap = ESP_IO_CAP_IN;
@@ -218,10 +221,26 @@ void RemehaConfida::setup() {
   // The scan-listener is registered at build time (see __init__.py), so
   // parse_device() receives advertisements. Logged at INFO (not CONFIG) so it is
   // always captured in the live log.
-  ESP_LOGI(TAG, "init: geconfigureerd MAC=0x%012llX  scan_mode=%d  prefix='%s'  pairing=%s",
-           (unsigned long long) cfg_addr, (int) scan_mode_, name_prefix_.c_str(),
-           requires_pairing_ ? "ja (passkey/encryptie)" : "NEE (GTW-IoT, plain connect)");
+  static const char *const MODES[] = {"automatisch (op naam)", "koppelen met passkey", "zonder koppelen (GTW-IoT)"};
+  ESP_LOGI(TAG, "init: geconfigureerd MAC=0x%012llX  scan_mode=%d  prefix='%s'  verbinding=%s",
+           (unsigned long long) cfg_addr, (int) scan_mode_, name_prefix_.empty() ? "EHC-/GTW-IOT" : name_prefix_.c_str(),
+           MODES[conn_mode_ % 3]);
   ESP_LOGCONFIG(TAG, "Remeha Confida set up (%d items)", (int) items_.size());
+}
+
+uint8_t RemehaConfida::match_name_(const std::string &name) const {
+  if (name.empty()) return 0;
+  auto starts = [&name](const char *p) {
+    size_t n = strlen(p);
+    if (name.size() < n) return false;
+    for (size_t i = 0; i < n; i++)
+      if (toupper((unsigned char) name[i]) != toupper((unsigned char) p[i])) return false;
+    return true;
+  };
+  bool gtw = starts("GTW-IOT");
+  if (!name_prefix_.empty()) return starts(name_prefix_.c_str()) ? (gtw ? 2 : 1) : 0;
+  if (gtw) return 2;
+  return starts("EHC-") ? 1 : 0;
 }
 
 bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -244,12 +263,22 @@ bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
              mac, name.c_str(), device.get_rssi());
   }
 
-  // Only in scan-mode: first device whose name starts with the prefix -> pin its
-  // MAC on the ble_client and let ble_client connect on the next advertisement.
-  if (scan_mode_ && !addr_resolved_ && !name.empty() && name.rfind(name_prefix_, 0) == 0) {
+  // Only in scan-mode: first device whose name matches -> pin its MAC on the
+  // ble_client and let ble_client connect on the next advertisement.
+  uint8_t kind = match_name_(name);
+  bool ours = scan_mode_ ? (!addr_resolved_ && kind != 0) : (addr == this->parent()->get_address());
+  if (ours && kind != 0 && conn_mode_ == 0) {
+    requires_pairing_ = (kind == 1);  // auto: route follows the advertised name
+    if (!route_logged_) {
+      route_logged_ = true;
+      ESP_LOGI(TAG, "route herkend aan de naam: %s", kind == 1 ? "ingebouwde Bluetooth (koppelen met passkey)"
+                                                               : "GTW-IoT (zonder koppelen)");
+    }
+  }
+  if (scan_mode_ && !addr_resolved_ && kind != 0) {
     addr_resolved_ = true;
     this->parent()->set_address(addr);
-    ESP_LOGI(TAG, "Confida gevonden: %s (%s) - verbinden",
+    ESP_LOGI(TAG, "Remeha-toestel gevonden: %s (%s) - verbinden",
              name.c_str(), mac);
   }
   return false;  // never claim the advertisement; ble_client drives the connection
@@ -259,13 +288,15 @@ void RemehaConfida::dump_config() {
   ESP_LOGCONFIG(TAG, "Remeha Confida: items=%d", (int) items_.size());
   // Show only the last two digits: enough to spot a wrong/mangled secret
   // (e.g. a leading zero read as octal) without putting the PIN in the log.
-  if (!requires_pairing_)
-    ESP_LOGCONFIG(TAG, "  pairing: UIT (GTW-IoT, plain connect zonder passkey)");
+  if (conn_mode_ == 2)
+    ESP_LOGCONFIG(TAG, "  verbinding: zonder koppelen (GTW-IoT)");
   else if (has_passkey_)
-    ESP_LOGCONFIG(TAG, "  passkey: ****%02u (laatste 2 cijfers, controleer tegen de sticker)",
-                  (unsigned) (passkey_ % 100));
-  else
+    ESP_LOGCONFIG(TAG, "  verbinding: %s, passkey ****%02u (laatste 2 cijfers, controleer tegen de sticker)",
+                  conn_mode_ == 0 ? "automatisch" : "koppelen", (unsigned) (passkey_ % 100));
+  else if (conn_mode_ == 1)
     ESP_LOGW(TAG, "  GEEN passkey ingesteld - koppelen gaat mislukken");
+  else
+    ESP_LOGCONFIG(TAG, "  verbinding: automatisch, geen passkey (werkt alleen met een GTW-IoT)");
 }
 
 void RemehaConfida::publish_reason_(const char *why) {
@@ -1187,12 +1218,15 @@ void RemehaConfida::handle_identification_(uint16_t index, const uint8_t *d, siz
   }
   ESP_LOGI(TAG, "toestel: %s (interne naam '%s')%s", buf, appliance_name_.c_str(),
            known ? "" : " - onbekend type: geef het artikelnummer door, dan nemen we het op");
-  if (appliance_ts_ != nullptr) appliance_ts_->publish_state(buf);
-  if (!expected_articles_.empty() &&
-      std::find(expected_articles_.begin(), expected_articles_.end(), article_) == expected_articles_.end()) {
+  bool other = !expected_articles_.empty() &&
+               std::find(expected_articles_.begin(), expected_articles_.end(), article_) == expected_articles_.end();
+  if (other) {
     ESP_LOGW(TAG, "LET OP: deze configuratie is gemaakt voor een ander toestel (artikelnummer %lu niet in "
              "expected_article_number). Controleer of de entiteiten kloppen.", (unsigned long) article_);
+    size_t n = strlen(buf);
+    snprintf(buf + n, sizeof(buf) - n, " - YAML voor ander toestel");
   }
+  if (appliance_ts_ != nullptr) appliance_ts_->publish_state(buf);
 }
 
 uint32_t RemehaNumber::pref_hash_() const {
@@ -1234,6 +1268,26 @@ void RemehaSelect::set_device_range(int32_t lo, int32_t hi) {
   if (hi < lo) return;
   range_known_ = true; dev_lo_ = lo; dev_hi_ = hi;
   ESP_LOGD(TAG, "select 0x%04X:%u: toestel staat keuzes %ld..%ld toe", index_, sub_, (long) lo, (long) hi);
+}
+
+// What this firmware currently reads/writes, so the configurator page can start
+// from it: [[node, index, sub, writable], ...]. items_ is fixed after setup, so
+// reading it from the HTTP task is safe.
+std::string RemehaConfida::current_json() const {
+  std::string j;
+  j.reserve(40 + items_.size() * 18);
+  j += "{\"items\":[";
+  char buf[40];
+  bool first = true;
+  for (auto &it : items_) {
+    bool w = it.number != nullptr || it.switch_ != nullptr || it.select_ != nullptr;
+    snprintf(buf, sizeof(buf), "%s[%u,%u,%u,%u]", first ? "" : ",", (unsigned) it.node, (unsigned) it.index,
+             (unsigned) it.sub, (unsigned) w);
+    j += buf;
+    first = false;
+  }
+  j += "]}";
+  return j;
 }
 
 // ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
