@@ -98,6 +98,9 @@ class RemehaConfida : public PollingComponent,
   void set_reconnect_sensor(sensor::Sensor *s) { reconnect_sensor_ = s; }
   // Optional: result of the last parameter write (accepted / refused + reason).
   void set_write_result_sensor(text_sensor::TextSensor *t) { write_result_ts_ = t; }
+  // Appliance identification (article number 0x2000:09 + name 0x3047 on node 1).
+  void set_appliance_sensor(text_sensor::TextSensor *t) { appliance_ts_ = t; }
+  void add_expected_article(uint32_t a) { expected_articles_.push_back(a); }
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -157,6 +160,7 @@ class RemehaConfida : public PollingComponent,
   uint8_t menu_left_{0};
   bool menu_done_{false};
   void start_menu_read_();
+  void start_poll_cycle_();
   void parse_menu_block_(uint8_t node, const uint8_t *d, size_t len);  // a response arrived while TX was busy: send the next queued read on TX done
   std::vector<uint32_t> dump_keys_;
   std::vector<std::pair<uint32_t, uint8_t>> dump_arrays_;
@@ -192,6 +196,13 @@ class RemehaConfida : public PollingComponent,
   text_sensor::TextSensor *reason_ts_{nullptr};   // optional: last reconnect reason
   sensor::Sensor *reconnect_sensor_{nullptr};     // optional: reconnect count
   text_sensor::TextSensor *write_result_ts_{nullptr};  // optional: last write result
+  text_sensor::TextSensor *appliance_ts_{nullptr};     // optional: "Confida 40 (7887477)"
+  std::vector<uint32_t> expected_articles_;
+  uint32_t article_{0};
+  std::string appliance_name_;
+  uint8_t id_left_{0};
+  bool id_done_{false};
+  void handle_identification_(uint16_t index, const uint8_t *d, size_t len, bool ok);
 
   static uint16_t crc_modbus_(const uint8_t *d, size_t n);
   static void tea_(uint8_t level, uint32_t serial, uint32_t chal, uint32_t &o1, uint32_t &o2);

@@ -1,0 +1,38 @@
+# Preset 'Buitenunit' voor de remeha_confida-component (esphome-remeha-ble).
+# Buitenunit en koudemiddelcircuit: temperaturen, drukken, compressor en ontdooien.
+#
+# Gebruik in je eigen YAML (naast de hub-configuratie):
+#   packages:
+#     buitenunit: github://mcc-tweakers/esphome-remeha-ble/presets/buitenunit.yaml@main
+#
+# Alle entiteiten gebruiken 'code:': naam, eenheid, schaal en type komen uit het
+# codeboek in de component. Objecten die jouw toestel niet kent, worden in de log
+# gemeld en daarna niet meer uitgelezen. Getest op een Confida 40.
+
+sensor:
+  - platform: remeha_confida
+    code: HM185            # aanvoer buitenunit
+  - platform: remeha_confida
+    code: HM186            # retour buitenunit
+  - platform: remeha_confida
+    code: HM098            # luchttemperatuur buitenunit
+  - platform: remeha_confida
+    code: HM087            # temperatuur compressor-koudemiddel
+  - platform: remeha_confida
+    code: HM094            # invertertemperatuur
+  - platform: remeha_confida
+    code: HM116            # hogedruk
+  - platform: remeha_confida
+    code: HM115            # lagedruk
+  - platform: remeha_confida
+    code: HM062            # compressorstroom
+  - platform: remeha_confida
+    code: HM129            # frequentiebeperking
+  - platform: remeha_confida
+    code: HM110            # waterdebiet buitenunit
+  - platform: remeha_confida
+    code: HM123            # modulatie waterpomp buitenunit
+  - platform: remeha_confida
+    code: HC010            # duur ontdooien
+  - platform: remeha_confida
+    code: HC011            # aantal ontdooicycli

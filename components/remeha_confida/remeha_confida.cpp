@@ -617,7 +617,7 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
       tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
       chain_next_ = false;
-      menu_q_.clear(); menu_left_ = 0;  // not finished: read again after reconnect (menu_done_ stays false)
+      menu_q_.clear(); menu_left_ = 0; id_left_ = 0;  // not finished: read again after reconnect
       if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
       dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
       break;
@@ -654,7 +654,11 @@ void RemehaConfida::canip_handshake_(const std::vector<uint8_t> &m) {
     if (reconnect_sensor_ != nullptr && !connected_once_) reconnect_sensor_->publish_state(0);
     connected_once_ = true;
     ESP_LOGI(TAG, ">> handshake complete - starting GetList polling");
-    if (!menu_done_) start_menu_read_();
+    // First poll right away (after a short pause for the last handshake write),
+    // instead of waiting up to a full update_interval for the next tick.
+    this->set_timeout("first_poll", 300, [this]() {
+      if (st_ == ST_RUN && !tx_busy_ && tx_queue_.empty()) start_poll_cycle_();
+    });
   } else {
     ESP_LOGW(TAG, "unexpected canip msg cls=0x%02X step=0x%02X", cls, step);
   }
@@ -805,12 +809,7 @@ void RemehaConfida::update() {
     // Individual reads from the previous cycle still draining (recovery if a
     // response was missed; normally they chain off each response, see NOTIFY).
     if (send_next_individual_()) return;
-    // Start a fresh cycle: one bulk GetList, then queue the single-read items.
-    build_request_();
-    tx_off_ = 0; tx_seq_ = 0; tx_busy_ = true; tx_start_ = now;
-    ESP_LOGD(TAG, "polling: GetList (%d bytes), responses %u", (int) tx_msg_.size(), (unsigned) responses_);
-    queue_individual_reads_();
-    send_next_fragment_();
+    start_poll_cycle_();
     return;
   }
 
@@ -834,6 +833,15 @@ void RemehaConfida::update() {
   char msg[48];
   snprintf(msg, sizeof(msg), "handshake stalled (st=%d)", (int) st_);
   force_reconnect_(msg);
+}
+
+// Start a fresh cycle: one bulk GetList, then queue the single-read items.
+void RemehaConfida::start_poll_cycle_() {
+  build_request_();
+  tx_off_ = 0; tx_seq_ = 0; tx_busy_ = true; tx_start_ = millis();
+  ESP_LOGD(TAG, "polling: GetList (%d bytes), responses %u", (int) tx_msg_.size(), (unsigned) responses_);
+  queue_individual_reads_();
+  send_next_fragment_();
 }
 
 // Close the GATT link and reset state so ESPHome's ble_client reconnects cleanly.
@@ -980,6 +988,10 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
+  if ((op == 0x01 || op == 0x02) && id_left_ > 0 && end >= 11 && m[7] == 1 &&
+      ((m[8] == 0x20 && m[9] == 0x00 && m[10] == 9) || (m[8] == 0x30 && m[9] == 0x47 && m[10] == 0))) {
+    handle_identification_((uint16_t) (m[8] << 8) | m[9], &m[11], end - 11, op == 0x01);
+  }
   if ((op == 0x01 || op == 0x02) && menu_left_ > 0 && end >= 11 && m[8] == 0x50 && m[9] == 0x2B) {
     if (op == 0x01) parse_menu_block_(m[7], &m[11], end - 11);
     if (--menu_left_ == 0) {
@@ -1072,17 +1084,20 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
     i += 8 + len;
   }
   // read: auto - an object the appliance does not return in the bulk GetList
-  // (missing, or a non-zero status) is switched to an individual read after two
-  // replies in a row without it.
+  // (missing, or a non-zero status) is switched to an individual read at once,
+  // and read in this same cycle.
   for (auto &it : items_) {
     if (it.single || !it.auto_read || it.missing) continue;
     if (it.seen) { it.miss = 0; continue; }
-    if (++it.miss >= 2) {
+    if (++it.miss >= 1) {
       it.single = true;
+      indiv_q_.push_back(build_read_frame_(it.node, it.index, it.sub));  // read it in this cycle already
       ESP_LOGI(TAG, "0x%04X:%u (node %u) zit niet in de bulk-lijst: voortaan los uitgelezen", it.index, it.sub,
                it.node);
     }
   }
+  // Menu descriptor (device limits) only after the first values are in.
+  if ((!menu_done_ || !id_done_) && menu_left_ == 0 && id_left_ == 0 && menu_q_.empty()) start_menu_read_();
 }
 
 // ---- menu descriptor 0x502B: device limits for numbers and selects ----
@@ -1090,7 +1105,13 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
 // bytes: [0] flags [1] size [2..3] index LE [4..7] min i32 LE [8..11] max i32 LE
 // [12] subindex [13] step (raw) [14] user level. min = max = -1: no range.
 void RemehaConfida::start_menu_read_() {
-  menu_q_.clear(); menu_nodes_.clear(); menu_left_ = 0;
+  menu_q_.clear(); menu_nodes_.clear(); menu_left_ = 0; id_left_ = 0;
+  if (!id_done_) {  // which appliance is this? (once per boot)
+    menu_q_.push_back(build_read_frame_(1, 0x2000, 9));
+    menu_q_.push_back(build_read_frame_(1, 0x3047, 0));
+    id_left_ = 2;
+  }
+  if (menu_done_) return;
   for (auto &it : items_) {
     if (it.number == nullptr && it.select_ == nullptr) continue;
     if (std::find(menu_nodes_.begin(), menu_nodes_.end(), it.node) == menu_nodes_.end())
@@ -1121,6 +1142,42 @@ void RemehaConfida::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len
       }
       if (it.select_ != nullptr) static_cast<RemehaSelect *>(it.select_)->set_device_range(mn, mx);
     }
+  }
+}
+
+// Known appliances by article number (0x2000:09). Others are logged so users can
+// report them; the number alone already distinguishes models.
+struct KnownAppliance { uint32_t article; const char *name; };
+static const KnownAppliance KNOWN_APPLIANCES[] = {
+  {7887477, "Remeha Confida 40"},
+};
+
+void RemehaConfida::handle_identification_(uint16_t index, const uint8_t *d, size_t len, bool ok) {
+  if (ok && index == 0x2000 && len >= 4) article_ = le32(d);
+  if (ok && index == 0x3047) {
+    appliance_name_.clear();
+    for (size_t i = 0; i < len && d[i]; i++) appliance_name_.push_back((char) d[i]);
+  }
+  if (--id_left_ > 0) return;
+  id_done_ = true;
+  const char *known = nullptr;
+  for (auto &k : KNOWN_APPLIANCES) if (k.article == article_) known = k.name;
+  char buf[96];
+  if (article_ == 0 || article_ == 0xFFFFFFFFUL) {
+    snprintf(buf, sizeof(buf), "onbekend%s%s", appliance_name_.empty() ? "" : " - ", appliance_name_.c_str());
+  } else if (known != nullptr) {
+    snprintf(buf, sizeof(buf), "%s (%lu)", known, (unsigned long) article_);
+  } else {
+    snprintf(buf, sizeof(buf), "artikelnummer %lu%s%s", (unsigned long) article_, appliance_name_.empty() ? "" : " - ",
+             appliance_name_.c_str());
+  }
+  ESP_LOGI(TAG, "toestel: %s (interne naam '%s')%s", buf, appliance_name_.c_str(),
+           known ? "" : " - onbekend type: geef het artikelnummer door, dan nemen we het op");
+  if (appliance_ts_ != nullptr) appliance_ts_->publish_state(buf);
+  if (!expected_articles_.empty() &&
+      std::find(expected_articles_.begin(), expected_articles_.end(), article_) == expected_articles_.end()) {
+    ESP_LOGW(TAG, "LET OP: deze configuratie is gemaakt voor een ander toestel (artikelnummer %lu niet in "
+             "expected_article_number). Controleer of de entiteiten kloppen.", (unsigned long) article_);
   }
 }
 

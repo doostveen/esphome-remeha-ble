@@ -107,6 +107,11 @@ CONF_RECONNECT_COUNT = "reconnect_count"
 # Optional: text_sensor with the result of the last parameter write
 # ("OK: 0x3212:0 node 1" or "geweigerd 0x3212:0: waarde te laag (0x06090032)").
 CONF_WRITE_RESULT = "write_result"
+# Optional: text_sensor with the recognised appliance ("Remeha Confida 40 (7887477)").
+CONF_APPLIANCE = "appliance"
+# Optional: article number(s) this configuration is meant for; a warning is logged
+# when the connected appliance reports another one (e.g. a preset for one model).
+CONF_EXPECTED_ARTICLE = "expected_article_number"
 
 
 def _passkey(value):
@@ -143,6 +148,11 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 icon="mdi:pencil-box-outline",
             ),
+            cv.Optional(CONF_APPLIANCE): core_text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon="mdi:heat-pump-outline",
+            ),
+            cv.Optional(CONF_EXPECTED_ARTICLE): cv.ensure_list(cv.positive_int),
             cv.Optional(CONF_RECONNECT_COUNT): core_sensor.sensor_schema(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -182,6 +192,11 @@ async def to_code(config):
     if CONF_WRITE_RESULT in config:
         wt = await core_text_sensor.new_text_sensor(config[CONF_WRITE_RESULT])
         cg.add(var.set_write_result_sensor(wt))
+    if CONF_APPLIANCE in config:
+        at = await core_text_sensor.new_text_sensor(config[CONF_APPLIANCE])
+        cg.add(var.set_appliance_sensor(at))
+    for art in config.get(CONF_EXPECTED_ARTICLE, []):
+        cg.add(var.add_expected_article(art))
     if CONF_RECONNECT_COUNT in config:
         rs = await core_sensor.new_sensor(config[CONF_RECONNECT_COUNT])
         cg.add(var.set_reconnect_sensor(rs))

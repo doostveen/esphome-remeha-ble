@@ -1,0 +1,31 @@
+# Preset 'Stooklijn' voor de remeha_confida-component (esphome-remeha-ble).
+# INSTELLINGEN van de stooklijn en de groep. Wijzigen in HA verandert ECHTE toestelinstellingen;
+# grenzen komen uit het toestel zelf.
+#
+# Gebruik in je eigen YAML (naast de hub-configuratie):
+#   packages:
+#     stooklijn: github://mcc-tweakers/esphome-remeha-ble/presets/stooklijn.yaml@main
+#
+# Alle entiteiten gebruiken 'code:': naam, eenheid, schaal en type komen uit het
+# codeboek in de component. Objecten die jouw toestel niet kent, worden in de log
+# gemeld en daarna niet meer uitgelezen. Getest op een Confida 40.
+
+number:
+  - platform: remeha_confida
+    code: CP000            # max. aanvoertemperatuur groep
+  - platform: remeha_confida
+    code: CP010            # setpunt aanvoer groep
+  - platform: remeha_confida
+    code: CP210            # voetpunt stooklijn
+  - platform: remeha_confida
+    code: CP220            # nachtvoetpunt stooklijn
+  - platform: remeha_confida
+    code: CP230            # helling stooklijn
+  - platform: remeha_confida
+    code: CP240            # ruimte-invloed
+
+select:
+  - platform: remeha_confida
+    code: CP320            # bedrijfsmodus groep
+  - platform: remeha_confida
+    code: CP780            # regelstrategie

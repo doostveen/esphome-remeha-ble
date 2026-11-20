@@ -117,6 +117,8 @@ remeha_confida:
     name: "Remeha laatste schrijfresultaat"
   reconnect_reason:
     name: "Remeha laatste herverbind-reden"
+  appliance:
+    name: "Remeha toestel"
   reconnect_count:
     name: "Remeha herverbindingen"
 

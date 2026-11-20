@@ -37,6 +37,15 @@
 - Meerdere entiteiten op hetzelfde object (bv. een `sensor` en een `select`) krijgen nu allemaal
   de waarde.
 
+- **Presets** in `presets/`: basis, energie, buitenunit, ruimte en stooklijn, als package
+  in te voegen.
+- **Toestelherkenning**: artikelnummer (0x2000:09) en interne naam (0x3047) in de log,
+  optioneel als entiteit (`appliance:`) en met een waarschuwing bij een ander toestel
+  (`expected_article_number:`).
+- **Sneller eerste waarden**: de eerste uitlezing start direct na het verbinden; objecten
+  die niet in de bulk-lijst zitten worden meteen in dezelfde ronde los gelezen; de
+  menubeschrijving komt pas daarna.
+
 ### Let op bij updaten
 - In beide YAML's zijn zeven waarden van `sensor` naar `binary_sensor` verhuisd: HM007,
   HM030, HM008, HM009, AM015 en de vlaggen 0x502E:1 en 0x502E:7. In Home Assistant

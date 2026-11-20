@@ -104,6 +104,46 @@ number:
 
 De uitgebreide manier hieronder (met `index:`, `value_type:` enzovoort) blijft werken.
 
+### Presets: kant-en-klare sets
+
+In de map [`presets/`](presets/) staan sets entiteiten (alle met `code:`) die je in één
+regel aan je YAML toevoegt:
+
+| preset | inhoud |
+|---|---|
+| `basis` | temperaturen, waterdruk en -debiet, vermogen, COP, status als tekst, aan/uit-waarden |
+| `energie` | energietellers en draaiuren |
+| `buitenunit` | buitenunit, koudemiddelcircuit, compressor en ontdooien |
+| `ruimte` | ruimtetemperaturen en gewenste temperatuur |
+| `stooklijn` | **instellingen** van stooklijn en groep (`number` en `select`) |
+
+```yaml
+packages:
+  basis: github://mcc-tweakers/esphome-remeha-ble/presets/basis.yaml@main
+  buitenunit: github://mcc-tweakers/esphome-remeha-ble/presets/buitenunit.yaml@main
+```
+
+Gebruik de presets in een nieuwe configuratie, of haal dezelfde entiteiten eerst uit je eigen
+YAML: twee entiteiten met dezelfde naam geven een foutmelding.
+
+### Welk toestel hangt er?
+
+Na het verbinden leest de component het artikelnummer (0x2000:09) en de interne naam
+(0x3047) van het toestel en zet die in de log, bijvoorbeeld
+`toestel: Remeha Confida 40 (7887477) (interne naam 'IDU2WH')`. Met een diagnose-entiteit
+zie je het ook in Home Assistant:
+
+```yaml
+remeha_confida:
+  # ...
+  appliance:
+    name: "Remeha toestel"
+  expected_article_number: 7887477   # optioneel: waarschuwing in de log bij een ander toestel
+```
+
+Wordt je toestel als "artikelnummer ..." getoond in plaats van met een naam, geef het nummer
+dan door via een issue; dan nemen we het op.
+
 **Stap 1 — zoek het object op.** Gebruik het codeboek
 `data/Remeha_parametercodeboek.xlsx`, tabblad **"Parameters"**: alle objecten van het
 protocol, met Nederlandse namen. Zoek op de code (bv. `HM001`) of op een trefwoord in
@@ -322,6 +362,7 @@ remeha-confida.yaml         ESPHome-config voor de GTW-22-route (met passkey)
 remeha-confida-gtwiot.yaml  ESPHome-config voor de GTW-IoT-route (zonder passkey)
 components/remeha_confida/  de external component (C++/Python-driver), voor beide
 docs/readme.md              technische protocolreferentie
+presets/                    kant-en-klare sets entiteiten (basis, energie, buitenunit, ruimte, stooklijn)
 data/                       codeboek: alle objecten, enums en foutcodes
 secrets.yaml.example        voorbeeld voor je eigen secrets.yaml
 LICENSE                     MIT-licentie
