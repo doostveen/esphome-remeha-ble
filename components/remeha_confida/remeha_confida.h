@@ -136,6 +136,7 @@ class RemehaConfida : public PollingComponent,
   // asked for (node<<24 | index<<8 | sub), and array objects whose sub 0 (entry
   // count) decides how many subs to read next (key node<<16 | index -> max subs).
   std::vector<std::vector<uint8_t>> dump_q_;
+  bool chain_next_{false};  // a response arrived while TX was busy: send the next queued read on TX done
   std::vector<uint32_t> dump_keys_;
   std::vector<std::pair<uint32_t, uint8_t>> dump_arrays_;
   uint16_t dump_left_{0};

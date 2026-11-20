@@ -562,7 +562,14 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       } else if (st_ != ST_RUN) {
         ESP_LOGD(TAG, "write 0x%04X ok", param->write.handle);
       }
-      if (st_ == ST_RUN && tx_busy_) send_next_fragment_();
+      if (st_ == ST_RUN && tx_busy_) {
+        send_next_fragment_();
+        // The response to a request can arrive BEFORE the ack of its last fragment
+        // (tx_busy_ still set at that moment). Then the chained next read was
+        // skipped; send it now that the TX is free, instead of waiting for the
+        // next poll tick (30 s).
+        if (!tx_busy_ && chain_next_) { chain_next_ = false; send_next_individual_(); }
+      }
       break;
     case ESP_GATTC_NOTIFY_EVT: {
       uint16_t h = param->notify.handle;
@@ -594,7 +601,9 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
           parse_response_(m);
           // Chain the next single-read request right after this response so all
           // individual reads finish within the current poll cycle (not one per tick).
-          send_next_individual_();
+          // If the TX is still finishing (ack pending), WRITE_CHAR_EVT sends it.
+          if (tx_busy_) chain_next_ = true;
+          else send_next_individual_();
         } else { ESP_LOGD(TAG, "<< canip %s", tohex(m.data(), m.size()).c_str()); canip_handshake_(m); }
       }
       break;
@@ -607,6 +616,7 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       cccd_1d_ = cccd_22_ = cccd_canip_ = cccd_13_ = 0;
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
       tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
+      chain_next_ = false;
       if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
       dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
       break;
