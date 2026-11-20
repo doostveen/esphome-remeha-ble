@@ -51,6 +51,7 @@
 #ifdef USE_ESP32
 #include "remeha_confida.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
@@ -599,6 +600,8 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       cccd_1d_ = cccd_22_ = cccd_canip_ = cccd_13_ = 0;
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
       tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
+      if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
+      dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
       break;
     default: break;
   }
@@ -683,7 +686,16 @@ void RemehaConfida::queue_individual_reads_() {
 
 // Pop and send the next queued individual read. Returns false when the queue is empty.
 bool RemehaConfida::send_next_individual_() {
-  if (indiv_q_.empty() || tx_busy_) return false;
+  if (tx_busy_) return false;
+  if (indiv_q_.empty()) {
+    // Discovery dump reads go out once the normal single reads are done; while a
+    // dump is pending, update() keeps draining it before starting a new GetList.
+    if (dump_q_.empty()) return false;
+    auto d = dump_q_.front();
+    dump_q_.erase(dump_q_.begin());
+    start_tx_(std::move(d));
+    return true;
+  }
   auto f = indiv_q_.front();
   indiv_q_.erase(indiv_q_.begin());
   ESP_LOGD(TAG, "sending individual read (%d bytes), %d left", (int) f.size(), (int) indiv_q_.size());
@@ -924,6 +936,7 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
+  if ((op == 0x01 || op == 0x02) && dump_left_ > 0 && dump_handle_(m, op)) return;
 
   if (op == 0x01) {
     // Individual read response: <01><00><node><idxHi><idxLo><sub><value...>
@@ -996,6 +1009,109 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
     }
     i += 8 + len;
   }
+}
+
+// ---- discovery dump (verkenning) ----
+// Objects that may tell what a device is and what it offers (see the OBD
+// function groups "Identification device", "Mandatory platform" and "System
+// discovery"). Arrays: sub 0 is the entry count, then subs 1..count are read.
+struct DumpObj { uint16_t index; uint8_t max_sub; };  // max_sub 0 = scalar (sub 0 only)
+static const uint8_t DUMP_ID_NODES[] = {1, 3, 4, 5};
+static const DumpObj DUMP_ID[] = {
+  {0x1000, 0},   // canDeviceType
+  {0x2000, 10},  // appliance info record
+  {0x2001, 16},  // device info record (type, versions, article number)
+  {0x300F, 0},   // device name
+  {0x3018, 0},   // configuration CN1/CN2
+  {0x3042, 0},   // short device name
+  {0x3047, 0},   // appliance name
+};
+static const uint8_t DUMP_DISC_NODES[] = {1, 4};
+static const DumpObj DUMP_DISC[] = {
+  {0x2007, 40},   // parFunctionGroup: defined function groups
+  {0x3019, 50},   // supported HMI function list
+  {0x502C, 2},    // supported menu structure version
+  {0x502D, 0},    // used menu structure version
+  {0x502B, 20},   // varApMenuDescriptor: data objects available to the user
+  {0x5826, 255},  // trending self-describer (layout of 0x501D)
+  {0x3095, 20},   // nodes discovered
+  {0x3096, 70},   // function groups discovered
+  {0x3097, 12},   // zones discovered
+  {0x3098, 8},    // producers discovered
+  {0x50D8, 0},    // function group version
+  {0x516B, 0},    // discovery status
+  {0x516D, 255},  // discovered nodes
+  {0x516E, 255},  // discovered devices
+  {0x516F, 10},   // discovered appliances
+  {0x5170, 255},  // discovered function groups
+  {0x5171, 32},   // discovered producers
+  {0x5172, 32},   // discovered zones
+  {0x5173, 0},    // discovery version
+  {0x5074, 0},    // discovered zones (JSON)
+};
+
+void RemehaConfida::dump_queue_read_(uint8_t node, uint16_t index, uint8_t sub) {
+  dump_q_.push_back(build_read_frame_(node, index, sub));
+  dump_keys_.push_back(((uint32_t) node << 24) | ((uint32_t) index << 8) | sub);
+  dump_left_++;
+}
+
+void RemehaConfida::start_discovery_dump() {
+  if (!dump_q_.empty()) { ESP_LOGW(TAG, "DUMP loopt al (%u reads in de wachtrij)", (unsigned) dump_q_.size()); return; }
+  dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
+  auto add = [this](uint8_t node, const DumpObj &o) {
+    dump_queue_read_(node, o.index, 0);
+    if (o.max_sub > 0) dump_arrays_.push_back({((uint32_t) node << 16) | o.index, o.max_sub});
+  };
+  for (uint8_t n : DUMP_ID_NODES) for (const auto &o : DUMP_ID) add(n, o);
+  for (uint8_t n : DUMP_DISC_NODES) for (const auto &o : DUMP_DISC) add(n, o);
+  ESP_LOGI(TAG, "DUMP gestart: %u reads (alleen lezen); arrays worden daarna per element gelezen",
+           (unsigned) dump_left_);
+  if (st_ == ST_RUN) send_next_individual_();
+  else ESP_LOGI(TAG, "DUMP wacht tot de verbinding loopt");
+}
+
+bool RemehaConfida::dump_handle_(const std::vector<uint8_t> &m, uint8_t op) {
+  const size_t end = m.size() - 2;
+  if (end < 11) return false;
+  uint8_t node = m[7];
+  uint16_t index = (uint16_t)(m[8] << 8) | m[9];
+  uint8_t sub = m[10];
+  uint32_t key = ((uint32_t) node << 24) | ((uint32_t) index << 8) | sub;
+  auto k = std::find(dump_keys_.begin(), dump_keys_.end(), key);
+  if (k == dump_keys_.end()) return false;
+  dump_keys_.erase(k);
+  if (dump_left_ > 0) dump_left_--;
+  if (op == 0x02) {
+    uint32_t code = (end >= 15) ? le32(&m[11]) : 0;
+    ESP_LOGI(TAG, "DUMP n%u 0x%04X:%02X fout 0x%08lX (%s)", node, index, sub, (unsigned long) code,
+             sdo_abort_str(code));
+  } else {
+    const uint8_t *d = &m[11];
+    size_t len = end - 11;
+    if (len <= 32) {
+      ESP_LOGI(TAG, "DUMP n%u 0x%04X:%02X len=%u %s", node, index, sub, (unsigned) len, tohex(d, len).c_str());
+    } else {  // long value: chunks of 32 bytes so log lines are not truncated
+      for (size_t o = 0; o < len; o += 32) {
+        size_t c = (len - o) > 32 ? 32 : (len - o);
+        ESP_LOGI(TAG, "DUMP n%u 0x%04X:%02X len=%u @%u %s", node, index, sub, (unsigned) len, (unsigned) o,
+                 tohex(d + o, c).c_str());
+      }
+    }
+    // Array: sub 0 holds the entry count -> queue subs 1..count (capped).
+    if (sub == 0 && len >= 1) {
+      uint32_t akey = ((uint32_t) node << 16) | index;
+      for (auto &a : dump_arrays_) {
+        if (a.first != akey) continue;
+        uint8_t n = d[0] < a.second ? d[0] : a.second;
+        for (uint8_t s = 1; s <= n && s != 0; s++) dump_queue_read_(node, index, s);
+        if (n > 0) ESP_LOGI(TAG, "DUMP n%u 0x%04X: %u elementen in de wachtrij", node, index, n);
+        break;
+      }
+    }
+  }
+  if (dump_left_ == 0) ESP_LOGI(TAG, "DUMP klaar");
+  return true;
 }
 
 // ---- writable number parameter ----

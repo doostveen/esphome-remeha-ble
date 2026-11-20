@@ -88,6 +88,10 @@ class RemehaConfida : public PollingComponent,
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
+  // Discovery dump (verkenning): read a fixed set of identification/discovery
+  // objects once (read-only) and log their raw bytes as "DUMP" lines. Trigger it
+  // from YAML, e.g. a template button: on_press: lambda: id(confida).start_discovery_dump();
+  void start_discovery_dump();
 
   // Queue a parameter WRITE (operation 0x04). data = value bytes, LITTLE-endian.
   // Sent as soon as the bus is idle; the appliance replies with a write-response.
@@ -128,6 +132,15 @@ class RemehaConfida : public PollingComponent,
   std::vector<RemehaItem> items_;
   std::vector<std::vector<uint8_t>> tx_queue_;  // pending WRITE frames (sent before polling)
   std::vector<std::vector<uint8_t>> indiv_q_;   // pending individual-READ frames (op 0x00) for single-read items
+  // discovery dump (see start_discovery_dump): pending read frames, the keys we
+  // asked for (node<<24 | index<<8 | sub), and array objects whose sub 0 (entry
+  // count) decides how many subs to read next (key node<<16 | index -> max subs).
+  std::vector<std::vector<uint8_t>> dump_q_;
+  std::vector<uint32_t> dump_keys_;
+  std::vector<std::pair<uint32_t, uint8_t>> dump_arrays_;
+  uint16_t dump_left_{0};
+  void dump_queue_read_(uint8_t node, uint16_t index, uint8_t sub);
+  bool dump_handle_(const std::vector<uint8_t> &m, uint8_t op);  // log a DUMP line if this answers a dump read
   std::vector<uint8_t> tx_msg_;   // GetList request / write frame being fragmented
   size_t tx_off_{0};
   uint8_t tx_seq_{0};
