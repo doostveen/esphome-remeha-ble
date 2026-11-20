@@ -226,13 +226,20 @@ bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint64_t addr = device.address_uint64();
   const std::string &name = device.get_name();
 
+  // MAC as text, formatted here from the 48-bit address: avoids the deprecated
+  // ESPBTDevice::address_str() and works on old and new ESPHome versions alike.
+  char mac[18];
+  snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+           (unsigned) ((addr >> 40) & 0xFF), (unsigned) ((addr >> 32) & 0xFF), (unsigned) ((addr >> 24) & 0xFF),
+           (unsigned) ((addr >> 16) & 0xFF), (unsigned) ((addr >> 8) & 0xFF), (unsigned) (addr & 0xFF));
+
   // Log every distinct BLE device once (diagnostics + so a user with multiple
   // appliances can read off which MAC to put in the YAML). Always, so that the
   // log confirms the scan listener is actually receiving advertisements.
   if (seen_.find(addr) == seen_.end()) {
     seen_.insert(addr);
     ESP_LOGI(TAG, "BLE gezien: %s  naam='%s'  rssi=%d",
-             device.address_str().c_str(), name.c_str(), device.get_rssi());
+             mac, name.c_str(), device.get_rssi());
   }
 
   // Only in scan-mode: first device whose name starts with the prefix -> pin its
@@ -241,7 +248,7 @@ bool RemehaConfida::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     addr_resolved_ = true;
     this->parent()->set_address(addr);
     ESP_LOGI(TAG, "Confida gevonden: %s (%s) - verbinden",
-             name.c_str(), device.address_str().c_str());
+             name.c_str(), mac);
   }
   return false;  // never claim the advertisement; ble_client drives the connection
 }
@@ -922,8 +929,7 @@ void RemehaConfida::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint
   ESP_LOGD(TAG, "0x%04X:%u = %.3f", it.index, it.sub, val);
   if (it.sensor != nullptr) it.sensor->publish_state(val);
   if (it.number != nullptr) {
-    ESP_LOGI(TAG, "read-back 0x%04X:%u = %.3f (number '%s')", it.index, it.sub, val,
-             it.number->get_name().c_str());
+    ESP_LOGI(TAG, "read-back 0x%04X:%u = %.3f (number)", it.index, it.sub, val);
     it.number->publish_state(val);  // actual current value
   }
 }
@@ -1148,7 +1154,7 @@ void RemehaNumber::control(float value) {
 
 void RemehaSwitch::write_state(bool state) {
   if (parent_ == nullptr) {
-    ESP_LOGW(TAG, "switch '%s' has no parent hub", this->get_name().c_str());
+    ESP_LOGW(TAG, "switch 0x%04X:%u has no parent hub", index_, sub_);
     return;
   }
   std::vector<uint8_t> data{(uint8_t)(state ? true_value_ : 0)};
