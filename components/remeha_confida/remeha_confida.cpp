@@ -617,6 +617,7 @@ void RemehaConfida::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
       tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
       chain_next_ = false;
+      menu_q_.clear(); menu_left_ = 0;  // not finished: read again after reconnect (menu_done_ stays false)
       if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
       dump_q_.clear(); dump_keys_.clear(); dump_arrays_.clear(); dump_left_ = 0;
       break;
@@ -653,6 +654,7 @@ void RemehaConfida::canip_handshake_(const std::vector<uint8_t> &m) {
     if (reconnect_sensor_ != nullptr && !connected_once_) reconnect_sensor_->publish_state(0);
     connected_once_ = true;
     ESP_LOGI(TAG, ">> handshake complete - starting GetList polling");
+    if (!menu_done_) start_menu_read_();
   } else {
     ESP_LOGW(TAG, "unexpected canip msg cls=0x%02X step=0x%02X", cls, step);
   }
@@ -705,6 +707,12 @@ void RemehaConfida::queue_individual_reads_() {
 bool RemehaConfida::send_next_individual_() {
   if (tx_busy_) return false;
   if (indiv_q_.empty()) {
+    if (!menu_q_.empty()) {  // menu descriptor blocks (once per boot)
+      auto f = menu_q_.front();
+      menu_q_.erase(menu_q_.begin());
+      start_tx_(std::move(f));
+      return true;
+    }
     // Discovery dump reads go out once the normal single reads are done; while a
     // dump is pending, update() keeps draining it before starting a new GetList.
     if (dump_q_.empty()) return false;
@@ -972,6 +980,14 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
+  if ((op == 0x01 || op == 0x02) && menu_left_ > 0 && end >= 11 && m[8] == 0x50 && m[9] == 0x2B) {
+    if (op == 0x01) parse_menu_block_(m[7], &m[11], end - 11);
+    if (--menu_left_ == 0) {
+      menu_done_ = true;
+      ESP_LOGI(TAG, "menubeschrijving (0x502B) verwerkt");
+    }
+    // no return: a discovery dump may want this block too
+  }
   if ((op == 0x01 || op == 0x02) && dump_left_ > 0 && dump_handle_(m, op)) return;
 
   if (op == 0x01) {
@@ -1067,6 +1083,86 @@ void RemehaConfida::parse_response_(const std::vector<uint8_t> &m) {
                it.node);
     }
   }
+}
+
+// ---- menu descriptor 0x502B: device limits for numbers and selects ----
+// Each sub (1..20) is a block: u16 count (LE), 2 bytes (02 00), then count x 15
+// bytes: [0] flags [1] size [2..3] index LE [4..7] min i32 LE [8..11] max i32 LE
+// [12] subindex [13] step (raw) [14] user level. min = max = -1: no range.
+void RemehaConfida::start_menu_read_() {
+  menu_q_.clear(); menu_nodes_.clear(); menu_left_ = 0;
+  for (auto &it : items_) {
+    if (it.number == nullptr && it.select_ == nullptr) continue;
+    if (std::find(menu_nodes_.begin(), menu_nodes_.end(), it.node) == menu_nodes_.end())
+      menu_nodes_.push_back(it.node);
+  }
+  if (menu_nodes_.empty()) { menu_done_ = true; return; }
+  for (uint8_t n : menu_nodes_) {
+    for (uint8_t s = 1; s <= 20; s++) { menu_q_.push_back(build_read_frame_(n, 0x502B, s)); menu_left_++; }
+  }
+  ESP_LOGI(TAG, "menubeschrijving (0x502B) lezen voor de grenzen van instellingen (%u blokken)",
+           (unsigned) menu_left_);
+}
+
+void RemehaConfida::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len) {
+  if (len < 4) return;
+  size_t count = d[0] | (d[1] << 8);
+  for (size_t k = 0; k < count && 4 + 15 * (k + 1) <= len; k++) {
+    const uint8_t *r = d + 4 + 15 * k;
+    uint16_t index = r[2] | (r[3] << 8);
+    int32_t mn = (int32_t) le32(r + 4), mx = (int32_t) le32(r + 8);
+    uint8_t sub = r[12], step = r[13];
+    if (mn == -1 && mx == -1) continue;
+    for (auto &it : items_) {
+      if (it.node != node || it.index != index || it.sub != sub) continue;
+      if (it.number != nullptr) {
+        float g = it.gain == 0.0f ? 1.0f : it.gain;
+        static_cast<RemehaNumber *>(it.number)->apply_device_limits(mn * g, mx * g, step > 0 ? step * g : NAN);
+      }
+      if (it.select_ != nullptr) static_cast<RemehaSelect *>(it.select_)->set_device_range(mn, mx);
+    }
+  }
+}
+
+uint32_t RemehaNumber::pref_hash_() const {
+  uint32_t h = 0x811C9DC5UL;  // FNV-1a over a tag + node/index/sub
+  const uint8_t key[] = {'r', 'l', 'i', 'm', node_, (uint8_t) (index_ >> 8), (uint8_t) index_, sub_};
+  for (uint8_t b : key) { h ^= b; h *= 16777619UL; }
+  return h;
+}
+
+void RemehaNumber::setup() {
+  if (!use_device_limits_) return;
+  pref_ = global_preferences->make_preference<LimitsPref>(pref_hash_(), true);
+  LimitsPref p{};
+  if (pref_.load(&p) && p.magic == 0x524C4D31UL && p.max >= p.min) {
+    traits.set_min_value(p.min);
+    traits.set_max_value(p.max);
+    if (!std::isnan(p.step) && p.step > 0) traits.set_step(p.step);
+    dev_min_ = p.min; dev_max_ = p.max; limits_known_ = true;
+    ESP_LOGD(TAG, "number 0x%04X:%u: opgeslagen toestelgrenzen %.3f..%.3f", index_, sub_, p.min, p.max);
+  }
+}
+
+void RemehaNumber::apply_device_limits(float min, float max, float step) {
+  if (!use_device_limits_ || max < min) return;
+  bool same = limits_known_ && fabsf(min - dev_min_) < 1e-4f && fabsf(max - dev_max_) < 1e-4f &&
+              (std::isnan(step) || fabsf(step - traits.get_step()) < 1e-4f);
+  traits.set_min_value(min);
+  traits.set_max_value(max);
+  if (!std::isnan(step) && step > 0) traits.set_step(step);
+  dev_min_ = min; dev_max_ = max; limits_known_ = true;
+  if (same) return;
+  ESP_LOGI(TAG, "number 0x%04X:%u: grenzen van het toestel %.3f..%.3f stap %.3f (opgeslagen; HA ziet ze na "
+           "de volgende herstart of herverbinding)", index_, sub_, min, max, traits.get_step());
+  LimitsPref p{min, max, std::isnan(step) ? NAN : step, 0x524C4D31UL};
+  pref_.save(&p);
+}
+
+void RemehaSelect::set_device_range(int32_t lo, int32_t hi) {
+  if (hi < lo) return;
+  range_known_ = true; dev_lo_ = lo; dev_hi_ = hi;
+  ESP_LOGD(TAG, "select 0x%04X:%u: toestel staat keuzes %ld..%ld toe", index_, sub_, (long) lo, (long) hi);
 }
 
 // ---- discovery dump (verkenning) ----
@@ -1178,6 +1274,12 @@ void RemehaNumber::control(float value) {
     ESP_LOGW(TAG, "number has no parent hub");
     return;
   }
+  if (limits_known_ && (value < dev_min_ - 1e-4f || value > dev_max_ + 1e-4f)) {
+    ESP_LOGW(TAG, "number 0x%04X:%u: %.3f valt buiten de grenzen van het toestel (%.3f..%.3f), niet geschreven",
+             index_, sub_, value, dev_min_, dev_max_);
+    if (this->has_state()) this->publish_state(this->state);  // put HA back on the actual value
+    return;
+  }
   float g = (gain_ == 0.0f) ? 1.0f : gain_;
   long raw = lroundf(value / g);
   std::vector<uint8_t> data;
@@ -1211,6 +1313,12 @@ void RemehaSelect::control(const std::string &value) {
   }
   for (auto &p : *map_) {
     if (value == p.second) {
+      if (range_known_ && (p.first < dev_lo_ || p.first > dev_hi_)) {
+        ESP_LOGW(TAG, "select 0x%04X:%u: '%s' (%ld) staat het toestel niet toe (%ld..%ld), niet geschreven",
+                 index_, sub_, value.c_str(), (long) p.first, (long) dev_lo_, (long) dev_hi_);
+        // nothing published: HA keeps showing the actual (read-back) choice
+        return;
+      }
       std::vector<uint8_t> data{(uint8_t) (p.first & 0xFF)};
       ESP_LOGI(TAG, "select '%s' -> write 0x%04X:%u = %ld", value.c_str(), index_, sub_, (long) p.first);
       parent_->enqueue_write(node_, index_, sub_, data);

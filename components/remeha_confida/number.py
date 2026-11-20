@@ -17,6 +17,7 @@ from . import (
 from .codebook import CONF_CODE, apply_code
 
 DEPENDENCIES = ["remeha_confida"]
+CONF_DEVICE_LIMITS = "device_limits"
 
 CONFIG_SCHEMA = cv.All(
     # `code: CP230` fills index/value_type/gain/unit/name and the technical
@@ -38,6 +39,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_VALUE, default=100.0): cv.float_,
             cv.Optional(CONF_STEP, default=1.0): cv.float_,
             cv.Optional(CONF_READ, default="bulk"): cv.enum(READ_MODES, lower=True),
+            # Use the appliance's own min/max/step (menu descriptor 0x502B) once known.
+            cv.Optional(CONF_DEVICE_LIMITS, default=True): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -59,6 +62,7 @@ async def to_code(config):
     cg.add(var.set_sub(config[CONF_SUBINDEX]))
     cg.add(var.set_value_type(config[CONF_TYPE]))
     cg.add(var.set_gain(config[CONF_GAIN]))
+    cg.add(var.set_use_device_limits(config[CONF_DEVICE_LIMITS]))
     # Also poll this object so the number shows the ACTUAL current value (read-back).
     item = cg.StructInitializer(
         remeha_ns.struct("RemehaItem"),

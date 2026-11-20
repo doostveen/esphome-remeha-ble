@@ -93,8 +93,13 @@ number:
   component probeert eerst de snelle bulk-lijst en leest het object los uit als het toestel
   het daar niet teruggeeft. Bestaat een object niet op jouw toestel, dan staat dat in de log
   en wordt het niet meer opgevraagd.
-- **`number`** krijgt nu nog de technische grenzen van het datatype. Zet zelf `min_value`
-  en `max_value` voor een prettige schuif of invoer.
+- **Grenzen uit het toestel.** Na het verbinden leest de component de menubeschrijving
+  van het toestel (object 0x502B). Daarin staan per instelling het echte minimum, maximum
+  en de stapgrootte. Een `number` neemt die over (ook als je zelf `min_value`/`max_value`
+  hebt gezet) en bewaart ze in het flashgeheugen; Home Assistant ziet ze na de eerstvolgende
+  herstart of herverbinding. Een waarde buiten die grenzen wordt niet geschreven. Bij een
+  `select` worden keuzes die het toestel niet toestaat geweigerd. Wil je dit voor een
+  `number` niet, zet dan `device_limits: false`.
 - Een paar codes komen dubbel voor in het codeboek; gebruik daarvoor `index:`.
 
 De uitgebreide manier hieronder (met `index:`, `value_type:` enzovoort) blijft werken.

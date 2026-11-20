@@ -29,6 +29,11 @@
 - **`read: auto`** (standaard bij `code:`): eerst bulk, zelf overstappen op los uitlezen
   als het toestel het object niet in de bulk-lijst teruggeeft.
 - Objecten die niet bestaan op het toestel worden gemeld en niet meer uitgelezen.
+- **Grenzen uit het toestel**: na het verbinden wordt de menubeschrijving (0x502B) gelezen.
+  `number` krijgt de echte min/max/stap van het toestel (bewaard in flash, zichtbaar in HA
+  na herstart of herverbinding); waarden daarbuiten worden niet geschreven. `select` weigert
+  keuzes die het toestel niet toestaat. Uitzetten per number met `device_limits: false`.
+  Let op: dit kan de grenzen in je bestaande YAML vervangen (bv. AP058 wordt 0 tot 2,0 bar).
 - Meerdere entiteiten op hetzelfde object (bv. een `sensor` en een `select`) krijgen nu allemaal
   de waarde.
 

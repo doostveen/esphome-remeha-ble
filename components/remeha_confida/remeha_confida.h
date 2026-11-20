@@ -13,6 +13,7 @@
 #include <set>
 #include <string>
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
@@ -148,7 +149,15 @@ class RemehaConfida : public PollingComponent,
   // asked for (node<<24 | index<<8 | sub), and array objects whose sub 0 (entry
   // count) decides how many subs to read next (key node<<16 | index -> max subs).
   std::vector<std::vector<uint8_t>> dump_q_;
-  bool chain_next_{false};  // a response arrived while TX was busy: send the next queued read on TX done
+  bool chain_next_{false};
+  // menu descriptor (0x502B): read once per boot after the handshake, to learn
+  // the appliance's own min/max/step for numbers and allowed range for selects
+  std::vector<std::vector<uint8_t>> menu_q_;
+  std::vector<uint8_t> menu_nodes_;
+  uint8_t menu_left_{0};
+  bool menu_done_{false};
+  void start_menu_read_();
+  void parse_menu_block_(uint8_t node, const uint8_t *d, size_t len);  // a response arrived while TX was busy: send the next queued read on TX done
   std::vector<uint32_t> dump_keys_;
   std::vector<std::pair<uint32_t, uint8_t>> dump_arrays_;
   uint16_t dump_left_{0};
@@ -216,15 +225,31 @@ class RemehaNumber : public number::Number, public Component {
   void set_sub(uint8_t v) { sub_ = v; }
   void set_value_type(ValueType v) { type_ = v; }
   void set_gain(float v) { gain_ = v; }
+  void set_use_device_limits(bool v) { use_device_limits_ = v; }
+  void setup() override;  // restores the device limits learned in an earlier session
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  // Limits from the appliance's menu descriptor (0x502B), already scaled by gain.
+  // Applied to the number traits and stored in flash, so HA gets them at the next
+  // (API) connect even before the BLE link is up.
+  void apply_device_limits(float min, float max, float step);
+  bool matches(uint8_t node, uint16_t index, uint8_t sub) const {
+    return node == node_ && index == index_ && sub == sub_;
+  }
 
  protected:
   void control(float value) override;
+  struct LimitsPref { float min; float max; float step; uint32_t magic; };
+  uint32_t pref_hash_() const;
   RemehaConfida *parent_{nullptr};
   uint8_t node_{1};
   uint16_t index_{0};
   uint8_t sub_{0};
   ValueType type_{VT_U16};
   float gain_{1.0f};
+  bool use_device_limits_{true};
+  bool limits_known_{false};
+  float dev_min_{0}, dev_max_{0};
+  ESPPreferenceObject pref_;
 };
 
 // Writable enum parameter exposed as a Home Assistant select. The chosen text is
@@ -236,6 +261,9 @@ class RemehaSelect : public select::Select, public Component {
   void set_index(uint16_t v) { index_ = v; }
   void set_sub(uint8_t v) { sub_ = v; }
   void set_enum_map(const EnumMap *m) { map_ = m; }
+  // Allowed raw range from the appliance's menu descriptor (0x502B): choices
+  // outside it are refused instead of written.
+  void set_device_range(int32_t lo, int32_t hi);
 
  protected:
   void control(const std::string &value) override;
@@ -244,6 +272,8 @@ class RemehaSelect : public select::Select, public Component {
   uint16_t index_{0};
   uint8_t sub_{0};
   const EnumMap *map_{nullptr};
+  bool range_known_{false};
+  int32_t dev_lo_{0}, dev_hi_{0};
 };
 
 // Writable on/off parameter (e.g. a YesNo/OffOn enum) exposed as a Home Assistant
