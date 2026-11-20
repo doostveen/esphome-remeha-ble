@@ -109,9 +109,12 @@ class RemehaConfida : public PollingComponent,
   // Configurator page on the ESP (optional, `configurator: true`): the web handler
   // runs in the HTTP server task, so it only sets a flag and reads the JSON under
   // a mutex; the scan itself runs in the main loop like every other BLE request.
+  // The result is streamed: every menu block becomes a small JSON chunk that the
+  // page fetches and acknowledges (?from=N), after which the ESP frees it. The
+  // scan pauses while the page has not picked up its chunks, so only a few kB are
+  // ever held in RAM (holding the whole result at once crashed small ESP32s).
   void request_scan();  // called from the HTTP task
-  std::mutex &scan_mutex() { return scan_mtx_; }
-  const std::string &scan_json() const { return scan_json_; }  // read with scan_mutex() held
+  std::string scan_poll(int gen, uint16_t from);  // HTTP task: status + chunks >= from (frees older ones of that gen)
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -174,14 +177,24 @@ class RemehaConfida : public PollingComponent,
   // configurator scan state (see request_scan)
   std::atomic<bool> scan_req_{false};
   bool scan_pending_{false};
-  uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done
-  uint16_t scan_left_{0}, scan_total_{0};
+  bool scan_restart_{false};  // new request while reading: restart when the read in flight is answered
+  bool scan_inflight_{false};
+  uint32_t scan_expect_{0};    // node<<24 | index<<8 | sub of the read in flight
+  uint32_t scan_issue_ms_{0};
+  uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done, 4 error
+  uint16_t scan_left_{0}, scan_total_{0}, scan_issued_{0}, scan_seq_{0};
+  std::atomic<uint16_t> scan_gen_{0};  // bumped on every (re)start, so the page knows to start over
   uint32_t scan_article_{0};
   std::string scan_name_;
-  std::vector<std::array<int32_t, 7>> scan_recs_;
-  std::string scan_json_{"{\"state\":\"idle\"}"};
+  std::atomic<uint32_t> scan_poll_ms_{0};  // last poll by the page (pause timeout)
+  // guarded by scan_mtx_ (shared with the HTTP task)
+  std::string scan_head_{"{\"state\":\"idle\""};
+  std::vector<std::pair<uint16_t, std::string>> scan_chunks_;
   std::mutex scan_mtx_;
   void start_scan_();
+  void scan_reset_();
+  void scan_issue_next_();
+  void scan_abort_(const char *why);
   void update_scan_json_();
   void handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub, const uint8_t *d, size_t len, bool ok);
   void start_poll_cycle_();

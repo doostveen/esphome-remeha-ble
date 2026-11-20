@@ -52,6 +52,9 @@
 - **Configurator op de ESP** (`configurator: true`, met `web_server:`): open
   `http://<esp>/remeha`, druk op Scan toestel, kies en kopieer de YAML. Geen log meer
   kopiëren. Kost ongeveer 70 kB flash.
+  De scan wordt in stukjes naar de pagina gestuurd en daarna op de ESP weer vrijgegeven,
+  zodat er maar een paar kB geheugen nodig is (een eerdere versie liep vol en herstartte).
+  Het resultaat wordt in de browser bewaard.
 - **Start-YAML's** (`remeha-start.yaml`, `remeha-start-gtwiot.yaml`): eerste flash met
   basisset en dump-knop.
 

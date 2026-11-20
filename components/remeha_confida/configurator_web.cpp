@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "configurator_page.h"
 #include <cstring>
+#include <cstdlib>
 
 namespace esphome {
 namespace remeha_confida {
@@ -33,13 +34,18 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
   if (url == "/remeha/scan") hub_->request_scan();
-  // send straight from the hub's JSON buffer (no copy); send() is synchronous
-  std::lock_guard<std::mutex> lock(hub_->scan_mutex());
-  const std::string &j = hub_->scan_json();
+  // ?gen=G&from=N: the page already has chunks < N of run G, the hub frees them
+  int gen = -1;
+  uint16_t from = 0;
+  auto *g = request->getParam("gen");
+  if (g != nullptr) gen = (int) strtol(g->value().c_str(), nullptr, 10);
+  auto *f = request->getParam("from");
+  if (f != nullptr) from = (uint16_t) strtoul(f->value().c_str(), nullptr, 10);
+  std::string j = hub_->scan_poll(gen, from);
   AsyncWebServerResponse *res = request->beginResponse(
       200, "application/json", reinterpret_cast<const uint8_t *>(j.data()), j.size());
   res->addHeader("Cache-Control", "no-store");
-  request->send(res);
+  request->send(res);  // synchronous, j stays valid
 }
 
 }  // namespace remeha_confida

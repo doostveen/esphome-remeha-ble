@@ -491,26 +491,55 @@ function applyDeviceResult(j) {
   for (const [k, v] of Object.entries(saved)) if (valid.has(k)) sel[k] = v;
   if (Object.keys(sel).length) render(); else applyPreset("basis");
 }
+// The ESP streams the scan: every poll returns the new menu blocks and frees the
+// ones the page already has (gen/from), so the ESP never holds the whole result.
+let scan = { gen: -1, from: 0, recs: [] };
 async function pollScan(first) {
   try {
-    const r = await fetch("/remeha/data.json" + (first ? "" : "?t=" + Date.now()), { cache: "no-store" });
+    const q = "?gen=" + scan.gen + "&from=" + scan.from + "&t=" + Date.now();
+    const r = await fetch("/remeha/data.json" + q, { cache: "no-store" });
     const j = await r.json();
-    if (j.state === "done" && j.recs) {
+    if (j.gen !== scan.gen) scan = { gen: j.gen, from: 0, recs: [] };  // new run: start over
+    if (j.recs && j.recs.length) scan.recs.push(...j.recs);
+    if (typeof j.next === "number") scan.from = j.next;
+    if (j.state === "done") {
       clearTimeout(pollTimer); pollTimer = null;
       $("btn-scan").disabled = false;
-      if (!first || !rows.length || device.example) applyDeviceResult(j);
+      if (first) {  // finished before this page was opened: the blocks are gone
+        restoreDeviceScan();
+        return;
+      }
+      fetch("/remeha/data.json?gen=" + scan.gen + "&from=" + scan.from, { cache: "no-store" }).catch(() => {});
+      const res = { recs: scan.recs, article: j.article || 0, name: j.name || "", route: j.route };
+      store("devscan", res);
+      applyDeviceResult(res);
+      return;
+    }
+    if (j.state === "error") {
+      clearTimeout(pollTimer); pollTimer = null;
+      $("status").innerHTML = "<b>Scan afgebroken:</b> " + (j.msg || "onbekende fout") + ". Probeer het opnieuw.";
+      $("btn-scan").disabled = false;
       return;
     }
     if (j.state === "waiting" || j.state === "scanning") {
+      if (first && j.state === "scanning") {  // earlier blocks went to another page: start over
+        try { await fetch("/remeha/scan", { cache: "no-store" }); } catch (e) {}
+      }
+      $("btn-scan").disabled = true;
       $("status").innerHTML = "<b>Scannen...</b> " + (j.total ? j.progress + " van " + j.total : "wacht op de verbinding met het toestel");
-      pollTimer = setTimeout(() => pollScan(false), 1000);
+      pollTimer = setTimeout(() => pollScan(false), 400);
     } else if (first) {
-      $("status").innerHTML = "Nog niet gescand. Druk op <b>Scan toestel</b>.";
+      restoreDeviceScan();
     }
   } catch (e) {
     $("status").innerHTML = "<b>Geen antwoord van de ESP.</b> Ververs de pagina of controleer de verbinding.";
     $("btn-scan").disabled = false;
   }
+}
+function restoreDeviceScan() {
+  const d = load("devscan", null);
+  if (d && d.recs && d.recs.length) applyDeviceResult(d);
+  else $("status").innerHTML = "Nog niet gescand. Druk op <b>Scan toestel</b>.";
 }
 if (ON_DEVICE) {
   for (const el of document.querySelectorAll(".file-only")) el.hidden = true;
@@ -520,7 +549,7 @@ if (ON_DEVICE) {
     $("status").innerHTML = "<b>Scannen...</b>";
     try { await fetch("/remeha/scan", { cache: "no-store" }); } catch (e) {}
     clearTimeout(pollTimer);
-    pollTimer = setTimeout(() => pollScan(false), 800);
+    pollTimer = setTimeout(() => pollScan(false), 500);
   });
 }
 
