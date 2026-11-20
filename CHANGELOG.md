@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.1 (2026-11-20)
+
+- *Use the choice of this ESP* now also takes over the entity names and the device
+  name, so existing entities stay the same entities in Home Assistant (before, they got
+  new default names in the chosen language).
+- Clearer note under the YAML.
+- No compiler warning about an empty `else` in `dump_config` with log level INFO.
+
 ## v1.0.0 (2026-11-20)
 
 First release under the name **esphome-remeha-ble**: a generic Bluetooth component for

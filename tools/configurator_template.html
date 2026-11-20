@@ -234,7 +234,7 @@ const I18N = {
     legend: '<span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel',
     thRead: "Lezen", thWrite: "Instelbaar", thCode: "Code", thName: "Naam", thKind: "Soort", thRange: "Bereik (toestel)", thLevel: "Niveau", thNode: "Print",
     copy: "Kopieer YAML", download: "Download .yaml",
-    yamlNote: "Zet de YAML in ESPHome (vervang de start-YAML) en flash opnieuw. Download werkt als je deze pagina lokaal opent; anders kopiëren.",
+    yamlNote: "Zet de YAML in ESPHome in plaats van de huidige en installeer opnieuw. Heb je je keuze overgenomen, dan houden bestaande entiteiten hun naam en blijven ze in Home Assistant dezelfde entiteit.",
     kindP: "instelling", kindS: "meetwaarde", kindC: "teller", read: "lezen", write: "instelbaar",
     choices: "{0} keuzes", to: "{0} tot {1}", counts: "{0} gekozen · {1} instelbaar", nothing: "Niets gevonden. Pas het filter aan of lees eerst een dump in.", article: "artikelnummer {0}", appliance: "toestel", internal: "interne naam {0}",
     objects: "{0} objecten om uit te kiezen", skipped: "({0} niet bruikbaar overgeslagen)",
@@ -280,7 +280,7 @@ const I18N = {
     legend: '<span class="badge">read</span> sensor in Home Assistant · <span class="badge warm">adjustable</span> changes a real setting of the appliance',
     thRead: "Read", thWrite: "Adjustable", thCode: "Code", thName: "Name", thKind: "Type", thRange: "Range (appliance)", thLevel: "Level", thNode: "Board",
     copy: "Copy YAML", download: "Download .yaml",
-    yamlNote: "Put the YAML in ESPHome (replacing the start YAML) and flash again. Download works when you open this page locally; otherwise copy.",
+    yamlNote: "Put the YAML in ESPHome instead of the current one and install again. If you took over your choice, existing entities keep their names and stay the same entities in Home Assistant.",
     kindP: "setting", kindS: "measurement", kindC: "counter", read: "read", write: "adjustable",
     choices: "{0} choices", to: "{0} to {1}", counts: "{0} selected · {1} adjustable", nothing: "Nothing found. Change the filter or read a dump first.", article: "article number {0}", appliance: "appliance", internal: "internal name {0}",
     objects: "{0} objects to choose from", skipped: "({0} unusable ones skipped)",
@@ -326,7 +326,7 @@ const I18N = {
     legend: '<span class="badge">lesen</span> Sensor in Home Assistant · <span class="badge warm">einstellbar</span> ändert eine echte Einstellung des Geräts',
     thRead: "Lesen", thWrite: "Einstellbar", thCode: "Code", thName: "Name", thKind: "Art", thRange: "Bereich (Gerät)", thLevel: "Ebene", thNode: "Platine",
     copy: "YAML kopieren", download: ".yaml herunterladen",
-    yamlNote: "Setze die YAML in ESPHome ein (statt der Start-YAML) und flashe erneut. Herunterladen funktioniert, wenn du diese Seite lokal öffnest; sonst kopieren.",
+    yamlNote: "Setze die YAML in ESPHome statt der aktuellen ein und installiere erneut. Hast du deine Auswahl übernommen, behalten bestehende Entitäten ihren Namen und bleiben in Home Assistant dieselben Entitäten.",
     kindP: "Einstellung", kindS: "Messwert", kindC: "Zähler", read: "lesen", write: "einstellbar",
     choices: "{0} Optionen", to: "{0} bis {1}", counts: "{0} ausgewählt · {1} einstellbar", nothing: "Nichts gefunden. Ändere den Filter oder lies zuerst einen Dump ein.", article: "Artikelnummer {0}", appliance: "Gerät", internal: "interner Name {0}",
     objects: "{0} Objekte zur Auswahl", skipped: "({0} nicht verwendbare übersprungen)",
@@ -762,15 +762,22 @@ async function takeFromEsp(quiet) {
     const j = await r.json();
     addExtras((j.items || []).map(([n, i, s]) => [n, i, s]));
     const valid = new Map(rows.map((x) => [x.key, x]));
-    const next = {};
-    for (const [node, idx, sub, w] of j.items || []) {
+    const counts = {};
+    for (const g of groups) for (const x of g.rows) counts[x.key] = g.rows.length;
+    const next = {}, nextNames = {};
+    for (const [node, idx, sub, w, name] of j.items || []) {
       const row = valid.get(node + "-" + hex4(idx) + "-" + sub);
-      if (row) next[row.key] = w && writable(row.o) ? "w" : "r";
+      if (!row) continue;
+      if (!next[row.key] || w) next[row.key] = w && writable(row.o) ? "w" : "r";
+      // keep the entity name, so Home Assistant keeps the same entity
+      if (name && name !== defaultName(row, counts[row.key]) && !nextNames[row.key]) nextNames[row.key] = name;
     }
+    if (j.device) $("devname").value = j.device;
+    if (j.friendly) $("friendly").value = j.friendly;
     const n = Object.keys(next).length;
     if (!n) { if (!quiet) $("import-status").textContent = t("espEmpty"); return false; }
-    sel = next;
-    store("sel", sel);
+    sel = next; names = nextNames;
+    store("sel", sel); store("names", names);
     render();
     $("import-status").textContent = t("fromEsp", n);
     return true;

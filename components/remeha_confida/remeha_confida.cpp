@@ -51,6 +51,7 @@
 #ifdef USE_ESP32
 #include "remeha_confida.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -1272,19 +1273,51 @@ void RemehaSelect::set_device_range(int32_t lo, int32_t hi) {
 }
 
 // What this firmware currently reads/writes, so the configurator page can start
-// from it: [[node, index, sub, writable], ...]. items_ is fixed after setup, so
-// reading it from the HTTP task is safe.
+// from it: device names plus [[node, index, sub, writable, "entity name"], ...].
+// items_ and the names are fixed after setup, so reading them from the HTTP task
+// is safe.
+static void json_str_(std::string &j, const char *s, size_t n) {
+  j += '"';
+  for (size_t i = 0; i < n; i++) {
+    char c = s[i];
+    if (c == '"' || c == '\\') { j += '\\'; j += c; }
+    else if ((unsigned char) c < 0x20) j += ' ';
+    else j += c;
+  }
+  j += '"';
+}
+
 std::string RemehaConfida::current_json() const {
   std::string j;
-  j.reserve(40 + items_.size() * 18);
-  j += "{\"items\":[";
+  j.reserve(80 + items_.size() * 70);
+  j += "{\"device\":";
+  json_str_(j, App.get_name().c_str(), App.get_name().size());
+  j += ",\"friendly\":";
+  json_str_(j, App.get_friendly_name().c_str(), App.get_friendly_name().size());
+  j += ",\"items\":[";
   char buf[40];
   bool first = true;
   for (auto &it : items_) {
     bool w = it.number != nullptr || it.switch_ != nullptr || it.select_ != nullptr;
-    snprintf(buf, sizeof(buf), "%s[%u,%u,%u,%u]", first ? "" : ",", (unsigned) it.node, (unsigned) it.index,
+    EntityBase *e = it.sensor != nullptr ? (EntityBase *) it.sensor
+                  : it.text_sensor != nullptr ? (EntityBase *) it.text_sensor
+                  : it.binary_sensor != nullptr ? (EntityBase *) it.binary_sensor
+                  : it.number != nullptr ? (EntityBase *) it.number
+                  : it.switch_ != nullptr ? (EntityBase *) it.switch_
+                  : (EntityBase *) it.select_;
+    snprintf(buf, sizeof(buf), "%s[%u,%u,%u,%u,", first ? "" : ",", (unsigned) it.node, (unsigned) it.index,
              (unsigned) it.sub, (unsigned) w);
     j += buf;
+    if (e != nullptr) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      const StringRef &n = e->get_name();  // get_name_to() only exists from ESPHome 2026.11
+#pragma GCC diagnostic pop
+      json_str_(j, n.c_str(), n.size());
+    } else {
+      j += "\"\"";
+    }
+    j += ']';
     first = false;
   }
   j += "]}";
