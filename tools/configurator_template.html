@@ -672,6 +672,7 @@ document.querySelector(".langs").addEventListener("click", (e) => {
   const l = e.target.dataset.lang; if (!l || l === LANG) return;
   LANG = l; store("lang", l);
   applyLang(); buildGroupFilter();
+  if (lastImport.length) importStatus(lastImport);
   if (rows.length) showDeviceStatus();
   render();
 });
@@ -743,6 +744,12 @@ async function applyDeviceResult(j) {
 }
 
 // ---- start from the current choice ----
+// The result line is kept as message keys, so it follows a language switch.
+let lastImport = [];
+function importStatus(msgs) {
+  lastImport = msgs;
+  $("import-status").innerHTML = msgs.map(([k, ...a]) => t(k, ...a.map((x) => esc(x)))).join(" ");
+}
 // Make sure rows exist for objects that are in use but not in the menu description.
 function addExtras(list) {
   const have = new Set(rows.map((r) => r.key)), known = new Set(extras.map((e) => e.join("-")));
@@ -756,7 +763,7 @@ function addExtras(list) {
 }
 // What this firmware reads now (/remeha/current.json: [node, index, sub, writable]).
 async function takeFromEsp(quiet) {
-  if (!rows.length) { if (!quiet) $("import-status").textContent = t("scanFirst"); return false; }
+  if (!rows.length) { if (!quiet) importStatus([["scanFirst"]]); return false; }
   try {
     const r = await fetch("/remeha/current.json", { cache: "no-store" });
     const j = await r.json();
@@ -775,14 +782,14 @@ async function takeFromEsp(quiet) {
     if (j.device) $("devname").value = j.device;
     if (j.friendly) $("friendly").value = j.friendly;
     const n = Object.keys(next).length;
-    if (!n) { if (!quiet) $("import-status").textContent = t("espEmpty"); return false; }
+    if (!n) { if (!quiet) importStatus([["espEmpty"]]); return false; }
     sel = next; names = nextNames;
     store("sel", sel); store("names", names);
     render();
-    $("import-status").textContent = t("fromEsp", n);
+    importStatus([["fromEsp", n]]);
     return true;
   } catch (e) {
-    if (!quiet) $("import-status").innerHTML = t("noAnswer");
+    if (!quiet) importStatus([["noAnswer"]]);
     return false;
   }
 }
@@ -812,8 +819,8 @@ function parseYaml(text) {
 }
 function importYaml(text) {
   const { items, subst } = parseYaml(text);
-  if (!items.length) { $("import-status").textContent = t("noneFound"); return; }
-  if (!rows.length) { $("import-status").textContent = t("scanFirst"); return; }
+  if (!items.length) { importStatus([["noneFound"]]); return; }
+  if (!rows.length) { importStatus([["scanFirst"]]); return; }
   // objects from the YAML that work but are not in the menu description
   const want = [];
   for (const it of items) {
@@ -853,7 +860,7 @@ function importYaml(text) {
   if (subst.friendly_name) $("friendly").value = subst.friendly_name;
   if (subst.ble_mac) $("mac").value = subst.ble_mac;
   render();
-  $("import-status").textContent = t("imported", Object.keys(next).length) + (missing.length ? " " + t("notFound", missing.length, missing.join(", ")) : "");
+  importStatus([["imported", Object.keys(next).length]].concat(missing.length ? [["notFound", missing.length, missing.join(", ")]] : []));
 }
 $("btn-esp").addEventListener("click", () => takeFromEsp(false));
 $("btn-yaml").addEventListener("click", () => {
