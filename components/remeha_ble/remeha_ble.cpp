@@ -1200,7 +1200,7 @@ void RemehaBle::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len) {
 // report them; the number alone already distinguishes models.
 struct KnownAppliance { uint32_t article; const char *name; };
 static const KnownAppliance KNOWN_APPLIANCES[] = {
-  {7887477, "Remeha Confida 40"},
+  {7887477, "Remeha Confida 40"}, {7854722, "Remeha Elga Ace MB 6MR"}
 };
 
 void RemehaBle::handle_identification_(uint16_t index, const uint8_t *d, size_t len, bool ok) {
