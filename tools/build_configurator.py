@@ -298,7 +298,7 @@ def main():
         "objects": load_objects(),
         "presets": QUICK_SELECT,
         "heads": {l: head_template(l) for l in LANGS},
-        "known": {"7887477": "Remeha Confida 40"},
+        "known": {"7887477": "Remeha Confida 40", "7854722": "Remeha Elga Ace"},
     }
     tpl = (ROOT / "tools" / "configurator_template.html").read_text(encoding="utf-8")
     html = tpl.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, separators=(",", ":")))

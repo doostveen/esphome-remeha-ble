@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The Remeha **Elga Ace** (controlbox, article number 7854722) is recognised by name
+  (thanks andrePKI).
+
 ## v2.1.0 (2026-11-20)
 
 - **Read a value from the configurator:** a button in the new *Value* column reads the
