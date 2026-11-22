@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Objects outside the menu** in the configurator. *+ From codebook* searches the
+  codebook by code, index or name, reads an object once and adds it to the table.
+  *Search outside the menu* lets the ESP try every codebook object that is not in the
+  appliance's menu (new endpoint `/remeha/batch`: a bulk GetList for measurements and
+  counters, then single reads for settings) and adds what returns a value. Codes from
+  the Remeha app for array elements (such as `AC089`, `CP083`) are recognised.
+- **Fix:** the scan read past the end of the menu description (0x502B) and showed the
+  data there as objects with nonsense ranges and levels (seen on an Elga Ace; a few on
+  a Confida 40). The list now ends at the first record that cannot be real, in the scan
+  and when taking over limits for numbers and selects. Older scans in the browser are
+  filtered too; scanning again is better.
 - The Remeha **Elga Ace** (controlbox, article number 7854722) is recognised by name
   (thanks andrePKI).
 

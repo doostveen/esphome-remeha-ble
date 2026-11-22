@@ -108,8 +108,31 @@ Dezelfde code kan op twee regels staan met een andere **Print**: de *regelaar*
 (node 1) en de *uitbreidingsprint* (node 4) hebben elk een eigen kopie van veel
 objecten. Voor de meeste installaties wil je die van de regelaar.
 
+### Objecten buiten het menu
+
+De scan laat zien wat het toestel in zijn eigen menubeschrijving opgeeft: het menu van
+het display. De Remeha-app toont meer, bijvoorbeeld de verdamper- en
+condensortemperatuur van de buitenunit. Bijna al die objecten staan in het codeboek,
+en je krijgt ze op twee manieren in de configurator:
+
+- **+ Uit codeboek** opent een zoekvak op code, index of naam. **Lees** laat meteen
+  zien of het object op jouw toestel bestaat; **Toevoegen** zet het als regel met
+  *buiten menu* in de tabel. Een code uit de Remeha-app die niet in het codeboek staat,
+  zoals `AC089` of `CP083`, is meestal een element van een lijst (`AC088` element 2,
+  `CP080` activiteit 4); het zoekvak meldt dat.
+- **Zoek buiten het menu** laat de ESP elk codeboekobject proberen dat niet in het
+  menu staat (alleen lezen). Stap 1 vraagt de meetwaarden en tellers op in groepjes
+  van 32 en duurt ongeveer een minuut; stap 2 leest de overige instellingen een
+  voor een en duurt een paar minuten. Zolang dat loopt, staat het gewone uitlezen
+  stil. Alles wat een waarde geeft, komt erbij als *buiten menu*; kies *Tonen: alleen
+  buiten menu* om ze te zien.
+
+Een object buiten het menu heeft geen grenzen van het toestel: een instelbare entiteit
+ervoor kent geen minimum of maximum van het toestel, dus maak die alleen als je weet
+wat de instelling doet.
+
 De configurator staat aan met `configurator: true` onder `remeha_ble:` en heeft
-`web_server:` nodig. Hij kost ongeveer 140 kB flash; zet hem op `false` als je klaar
+`web_server:` nodig. Hij kost ongeveer 150 kB flash; zet hem op `false` als je klaar
 bent en die ruimte nodig hebt.
 
 ## De YAML in het kort

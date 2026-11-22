@@ -106,8 +106,31 @@ The same code can appear on two rows with a different **Board**: the *controller
 (node 1) and the *extension* board (node 4) each have their own copy of many objects.
 For most installations the controller is the one you want.
 
+### Objects outside the menu
+
+The scan shows what the appliance lists in its own menu description, which is the
+menu of its display. The Remeha app shows more, for example the evaporator and
+condenser temperature of the outdoor unit. Almost all of those objects are in the
+codebook, and there are two ways to get them into the configurator:
+
+- **+ From codebook** opens a search by code, index or name. **Read** shows at once
+  whether the object exists on your appliance; **Add** puts it in the table as a row
+  marked *not in menu*. A code from the Remeha app that does not exist in the codebook,
+  such as `AC089` or `CP083`, is usually an element of an array (`AC088` element 2,
+  `CP080` activity 4); the search says so.
+- **Search outside the menu** lets the ESP try every codebook object that is not in
+  the menu (read only). Step 1 asks for the measurements and counters in groups of 32
+  and takes about a minute; step 2 reads the remaining settings one by one and
+  takes a few minutes. While it runs, the normal reading pauses. Everything that
+  returns a value is added as *not in menu*; choose *Show: not in menu only* to see
+  them.
+
+An object outside the menu has no limits from the appliance: an adjustable entity for
+it has no minimum or maximum reported by the appliance, so only make one if you know
+the setting.
+
 The configurator is switched on with `configurator: true` under `remeha_ble:` and
-needs `web_server:`. It takes about 140 kB of flash; set it to `false` once you are done
+needs `web_server:`. It takes about 150 kB of flash; set it to `false` once you are done
 if you need the space.
 
 ## The YAML in short

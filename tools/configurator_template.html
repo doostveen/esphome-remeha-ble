@@ -100,6 +100,18 @@ button.xp:hover { border-color: var(--accent); }
 tr.sub td.code { padding-left: 34px; color: var(--muted); }
 tr.sub td.name { color: var(--muted); }
 tr.parent td { border-bottom-style: dashed; }
+.outside { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+progress { width: 100%; max-width: 420px; height: 8px; accent-color: var(--accent); }
+dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); padding: 18px; width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+dialog::backdrop { background: rgba(10, 20, 26, .45); }
+dialog .dlg { display: grid; gap: 12px; }
+dialog .dlg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+dialog h3 { font-family: var(--font-head); font-size: 1.1rem; margin: 0; }
+dialog .form { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 640px) { dialog .form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } dialog .form .search { grid-column: 1 / -1; } }
+dialog .tablebox { max-height: 50vh; }
+.alias { background: var(--accent-soft); border-radius: 6px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .9rem; }
+button.sm { padding: 2px 10px; font-size: .82rem; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -171,6 +183,17 @@ tr.parent td { border-bottom-style: dashed; }
       <span id="presets" class="row"></span>
       <button id="btn-clear" type="button" class="chip" data-i18n="clear"></button>
     </div>
+    <div class="outside">
+      <p class="note" data-i18n="outsideNote"></p>
+      <div class="row">
+        <button id="btn-cb" type="button" class="ghost" data-i18n="cbBtn"></button>
+        <button id="btn-deep" type="button" class="ghost" data-i18n="deepBtn"></button>
+        <label class="check" id="deep-node-box" hidden><input id="deep-node" type="checkbox"> <span data-i18n="deepNode"></span></label>
+        <button id="btn-deep-stop" type="button" class="chip" data-i18n="deepStop" hidden></button>
+      </div>
+      <progress id="deep-bar" max="1" value="0" hidden></progress>
+      <div id="deep-status" class="status" aria-live="polite"></div>
+    </div>
     <div class="toolbar">
       <label class="search"><span data-i18n="lSearch"></span>
         <input id="q" type="text" data-i18n-ph="phSearch">
@@ -191,6 +214,7 @@ tr.parent td { border-bottom-style: dashed; }
           <option value="all" data-i18n="sAll"></option>
           <option value="sel" data-i18n="sSel"></option>
           <option value="lvl1" data-i18n="sLvl1"></option>
+          <option value="extra" data-i18n="sExtra"></option>
         </select>
       </label>
     </div>
@@ -217,6 +241,35 @@ tr.parent td { border-bottom-style: dashed; }
     <pre class="yaml" id="yaml"></pre>
   </section>
 </div>
+
+<dialog id="cb-dlg" aria-labelledby="cb-title">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h3 id="cb-title" data-i18n="cbTitle"></h3>
+      <button id="cb-close" type="button" class="chip" data-i18n="cbClose"></button>
+    </div>
+    <div class="form">
+      <label class="search"><span data-i18n="cbSearch"></span>
+        <input id="cb-q" type="text" data-i18n-ph="cbPh" spellcheck="false" autocomplete="off">
+      </label>
+      <label><span data-i18n="cbNode"></span>
+        <select id="cb-node"></select>
+      </label>
+      <label><span data-i18n="cbEl"></span>
+        <input id="cb-el" type="text" inputmode="numeric" value="1">
+      </label>
+    </div>
+    <p class="note" data-i18n="cbNote"></p>
+    <div id="cb-alias" class="alias" hidden></div>
+    <div id="cb-msg" class="status" aria-live="polite"></div>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th data-i18n="thCode"></th><th data-i18n="thName"></th><th data-i18n="thKind"></th><th data-i18n="thValue"></th><th></th></tr></thead>
+        <tbody id="cb-body"></tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
 
 <script>
 const DATA = /*__DATA__*/null;
@@ -276,6 +329,19 @@ const I18N = {
     errNotExist: "bestaat niet",
     errNoAccess: "geen toegang",
     errOther: "fout {0}",
+    cbBtn: "+ Uit codeboek", deepBtn: "Zoek buiten het menu", deepNode: "ook de uitbreidingsprint", deepStop: "Stoppen",
+    outsideNote: "Het menu van het toestel bevat niet alles. De Remeha-app toont bijvoorbeeld ook verdamper- en condensortemperatuur. Voeg zo'n object zelf toe uit het codeboek, of laat de ESP zoeken wat je toestel buiten het menu nog heeft (alleen lezen, een paar minuten).",
+    deepP1: "Stap 1 van 2, meetwaarden en tellers: {0} van {1} · {2} gevonden",
+    deepP2: "Stap 2 van 2, instellingen: {0} van {1} · {2} gevonden",
+    deepDone: "Klaar: {0} objecten gevonden buiten het menu. Je ziet ze met Tonen: alleen buiten menu.",
+    deepStopped: "Gestopt: {0} objecten gevonden tot nu toe.", deepErr: "Afgebroken: {0}.", deepNothing: "Niets meer te zoeken: alles uit het codeboek staat al in de lijst.",
+    sExtra: "alleen buiten menu",
+    cbTitle: "Object uit het codeboek toevoegen", cbSearch: "Zoek op code, index of naam", cbPh: "bv. HM097, 0x434E of verdamper",
+    cbNode: "Print", cbEl: "Element", cbAdd: "Toevoegen", cbAdded: "toegevoegd", cbInList: "in de lijst", cbClose: "Sluiten",
+    cbMore: "{0} resultaten, de eerste 50 staan hier. Zoek specifieker.", cbNone: "Niets gevonden in het codeboek.",
+    cbAlias: "{0} is in de Remeha-app element {1} van {2}.", cbAliasAdd: "{0} element {1} toevoegen",
+    cbNote: "Een object buiten het menu heeft geen grenzen van het toestel. Lees eerst of het op jouw toestel bestaat; elementen tel je vanaf 1 (zone, activiteit, producent).",
+    cbScanFirst: "Scan eerst het toestel; toevoegen kan pas daarna.",
   },
   en: {
     lead: "Choose, from what your Remeha appliance reports itself, which values you want to see in Home Assistant and which settings you want to be able to change. You get a complete ESPHome YAML for this ESP.",
@@ -330,6 +396,19 @@ const I18N = {
     errNotExist: "does not exist",
     errNoAccess: "no access",
     errOther: "error {0}",
+    cbBtn: "+ From codebook", deepBtn: "Search outside the menu", deepNode: "include the extension board", deepStop: "Stop",
+    outsideNote: "The appliance's menu does not hold everything. The Remeha app also shows, for example, the evaporator and condenser temperature. Add such an object yourself from the codebook, or let the ESP search what your appliance has outside the menu (read only, a few minutes).",
+    deepP1: "Step 1 of 2, measurements and counters: {0} of {1} · {2} found",
+    deepP2: "Step 2 of 2, settings: {0} of {1} · {2} found",
+    deepDone: "Done: {0} objects found outside the menu. Show them with Show: not in menu only.",
+    deepStopped: "Stopped: {0} objects found so far.", deepErr: "Aborted: {0}.", deepNothing: "Nothing left to search: everything from the codebook is in the list already.",
+    sExtra: "not in menu only",
+    cbTitle: "Add an object from the codebook", cbSearch: "Search by code, index or name", cbPh: "e.g. HM097, 0x434E or evaporator",
+    cbNode: "Board", cbEl: "Element", cbAdd: "Add", cbAdded: "added", cbInList: "in the list", cbClose: "Close",
+    cbMore: "{0} results, the first 50 are shown. Search more specifically.", cbNone: "Nothing found in the codebook.",
+    cbAlias: "In the Remeha app, {0} is element {1} of {2}.", cbAliasAdd: "Add {0} element {1}",
+    cbNote: "An object outside the menu has no limits from the appliance. Read it first to see whether it exists on your appliance; elements count from 1 (zone, activity, producer).",
+    cbScanFirst: "Scan the appliance first; adding is possible after that.",
   },
   de: {
     lead: "Wähle aus dem, was dein Remeha-Gerät selbst meldet, welche Werte du in Home Assistant sehen und welche Einstellungen du ändern möchtest. Du bekommst eine komplette ESPHome-YAML für diesen ESP.",
@@ -384,6 +463,19 @@ const I18N = {
     errNotExist: "existiert nicht",
     errNoAccess: "kein Zugriff",
     errOther: "Fehler {0}",
+    cbBtn: "+ Aus dem Codebuch", deepBtn: "Außerhalb des Menüs suchen", deepNode: "auch die Erweiterungsplatine", deepStop: "Stoppen",
+    outsideNote: "Das Menü des Geräts enthält nicht alles. Die Remeha-App zeigt zum Beispiel auch Verdampfer- und Kondensatortemperatur. Füge ein solches Objekt selbst aus dem Codebuch hinzu, oder lass den ESP suchen, was dein Gerät außerhalb des Menüs noch hat (nur lesen, einige Minuten).",
+    deepP1: "Schritt 1 von 2, Messwerte und Zähler: {0} von {1} · {2} gefunden",
+    deepP2: "Schritt 2 von 2, Einstellungen: {0} von {1} · {2} gefunden",
+    deepDone: "Fertig: {0} Objekte außerhalb des Menüs gefunden. Du siehst sie mit Anzeigen: nur nicht im Menü.",
+    deepStopped: "Gestoppt: bisher {0} Objekte gefunden.", deepErr: "Abgebrochen: {0}.", deepNothing: "Nichts mehr zu suchen: alles aus dem Codebuch steht schon in der Liste.",
+    sExtra: "nur nicht im Menü",
+    cbTitle: "Objekt aus dem Codebuch hinzufügen", cbSearch: "Suche nach Code, Index oder Name", cbPh: "z. B. HM097, 0x434E oder Verdampfer",
+    cbNode: "Platine", cbEl: "Element", cbAdd: "Hinzufügen", cbAdded: "hinzugefügt", cbInList: "in der Liste", cbClose: "Schließen",
+    cbMore: "{0} Treffer, die ersten 50 stehen hier. Suche genauer.", cbNone: "Nichts im Codebuch gefunden.",
+    cbAlias: "In der Remeha-App ist {0} Element {1} von {2}.", cbAliasAdd: "{0} Element {1} hinzufügen",
+    cbNote: "Ein Objekt außerhalb des Menüs hat keine Grenzen vom Gerät. Lies es zuerst, um zu sehen, ob es auf deinem Gerät existiert; Elemente zählen ab 1 (Zone, Aktivität, Erzeuger).",
+    cbScanFirst: "Scanne zuerst das Gerät; hinzufügen geht erst danach.",
   },
 };
 const LANG_IDX = { nl: 1, en: 2, de: 3 };
@@ -443,6 +535,14 @@ function fixMin(min, max) {
   if (min > max && min >= 0x80 && min <= 0xFF) return min - 0x100;
   return min;
 }
+// A scan from before v2.1.1 can hold records read past the end of the menu
+// description (nonsense ranges and levels); the firmware now leaves them out.
+function validRec(idx, min, max, level) {
+  if (!idx || (level > 5 && level !== 15)) return false;
+  if (min === -1 && max === -1) return true;
+  const lo = fixMin(min, max);
+  return lo <= fixMax(lo, max);
+}
 function rangeText(r) {
   if (r.min === -1 && r.max === -1) return "";
   const o = r.o;
@@ -475,7 +575,7 @@ function setRecords(recs, dev) {
   let unknown = 0;
   for (const [node, idx, sub, min, max, step, level] of recs) {
     const key = node + "-" + hex4(idx) + "-" + sub;
-    if (seen.has(key)) continue;
+    if (seen.has(key) || !validRec(idx, min, max, level)) continue;
     seen.add(key);
     const o = lookup(idx, sub);
     if (!o || !readable(o)) { unknown++; continue; }
@@ -499,6 +599,7 @@ function setRecords(recs, dev) {
   for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k];
   buildGroupFilter();
   showDeviceStatus();
+  if (!deepRun) $("deep-node-box").hidden = !scanNodes().includes(4);
   render();
 }
 function showDeviceStatus() {
@@ -556,24 +657,30 @@ function probeError(j) {
   if (code === 0x06010000) return t("errNoAccess");
   return t("errOther", "0x" + code.toString(16).toUpperCase().padStart(8, "0"));
 }
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+// Read one object once; resolves to the text to show. Reads go one after the other.
+function readObj(node, idx, sub, o) {
+  const p = probeChain.then(async () => {
+    try {
+      const q = await (await fetch("/remeha/read?n=" + node + "&i=" + idx + "&s=" + sub, { cache: "no-store" })).json();
+      for (let k = 0; k < 50; k++) {
+        await sleep(250);
+        const j = await (await fetch("/remeha/read?t=" + Date.now(), { cache: "no-store" })).json();
+        if (j.id !== q.id || j.state !== "done") continue;
+        return j.ok ? decodeValue(o, hexBytes(j.hex)) : probeError(j);
+      }
+      return t("errTimeout");
+    } catch (e) {
+      return t("errNoLink");
+    }
+  });
+  probeChain = p.catch(() => {});
+  return p;
+}
 function readValue(key) {
   const r = rows.find((x) => x.key === key); if (!r) return;
   showProbe(key, "\u2026");
-  probeChain = probeChain.then(async () => {
-    try {
-      const q = await (await fetch("/remeha/read?n=" + r.node + "&i=" + r.idx + "&s=" + r.sub, { cache: "no-store" })).json();
-      for (let k = 0; k < 50; k++) {
-        await new Promise((ok) => setTimeout(ok, 250));
-        const j = await (await fetch("/remeha/read?t=" + Date.now(), { cache: "no-store" })).json();
-        if (j.id !== q.id || j.state !== "done") continue;
-        showProbe(key, j.ok ? decodeValue(r.o, hexBytes(j.hex)) : probeError(j));
-        return;
-      }
-      showProbe(key, t("errTimeout"));
-    } catch (e) {
-      showProbe(key, t("errNoLink"));
-    }
-  });
+  readObj(r.node, r.idx, r.sub, r.o).then((txt) => showProbe(key, txt));
 }
 function cells(r, extraName) {
   const o = r.o;
@@ -617,6 +724,7 @@ function render() {
     if (kind && o.k !== kind) continue;
     if (show === "sel" && !g.rows.some((r) => sel[r.key])) continue;
     if (show === "lvl1" && !g.rows.some((r) => r.level <= 1)) continue;
+    if (show === "extra" && !g.rows.some((r) => r.extra)) continue;
     if (q && !((o.c || "").toLowerCase().includes(q) || nm(o).toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r0.idx).toLowerCase().includes(q))) continue;
     if (++shown > 800) break;
     if (g.rows.length === 1) { html.push(rowHtml(r0, false)); continue; }
@@ -1013,6 +1121,191 @@ $("btn-scan").addEventListener("click", async () => {
   clearTimeout(pollTimer);
   pollTimer = setTimeout(() => pollScan(false), 500);
 });
+
+// ---- objects outside the menu: add one from the codebook ----
+const codeKey = new Map();  // app code -> codebook key "IIII:SS"
+for (const [k, o] of Object.entries(DATA.objects)) if (o.c && !o.d && !codeKey.has(o.c)) codeKey.set(o.c, k);
+function scanNodes() {
+  const ns = [...new Set(lastRecs.map((r) => r[0]))].sort((a, b) => a - b);
+  return ns.length ? ns : [1];
+}
+function keyOf(k) { return { idx: parseInt(k.slice(0, 4), 16), sub: parseInt(k.slice(5), 16) }; }
+// The Remeha app gives each element of an array its own code: AC089 is AC088
+// element 2, CP081..CP085 are CP080 activity 2..6. Find that base code.
+function appAlias(q) {
+  const m = q.toUpperCase().match(/^([A-Z]{2})(\d{3})$/);
+  if (!m || codeKey.has(q.toUpperCase())) return null;
+  const n = +m[2];
+  for (let d = 1; d <= 15 && n - d >= 0; d++) {
+    const base = m[1] + String(n - d).padStart(3, "0"), k = codeKey.get(base);
+    if (k && DATA.objects[k].a) return { code: q.toUpperCase(), base, k, el: d + 1 };
+    if (k) return null;
+  }
+  return null;
+}
+let cbList = [];
+function cbSearch() {
+  const q = $("cb-q").value.trim(), ql = q.toLowerCase();
+  const hx = ql.replace(/^0x/, "");
+  const node = +$("cb-node").value || 1;
+  const alias = q ? appAlias(q) : null;
+  const ab = $("cb-alias");
+  if (alias) {
+    ab.hidden = false;
+    ab.innerHTML = "<span>" + esc(t("cbAlias", alias.code, alias.el, alias.base)) + '</span><button type="button" class="sm" data-alias="1">' +
+      esc(t("cbAliasAdd", alias.base, alias.el)) + "</button>";
+    ab.dataset.k = alias.k; ab.dataset.el = alias.el;
+  } else ab.hidden = true;
+  if (!q) { cbList = []; $("cb-body").innerHTML = ""; $("cb-msg").textContent = ""; return; }
+  const hits = [];
+  for (const [k, o] of Object.entries(DATA.objects)) {
+    if (!readable(o)) continue;
+    if (o.a && k.slice(5) !== "00") continue;  // one row per array object
+    if ((o.c || "").toLowerCase().includes(ql) || nm(o).toLowerCase().includes(ql) || o.n.toLowerCase().includes(ql) ||
+        (/^[0-9a-f]{3,4}$/.test(hx) && k.toLowerCase().startsWith(hx.padStart(4, "0")))) hits.push(k);
+  }
+  hits.sort((a, b) => {
+    const A = DATA.objects[a], B = DATA.objects[b];
+    return (A.c ? 0 : 1) - (B.c ? 0 : 1) || (A.c || a).localeCompare(B.c || b);
+  });
+  cbList = hits.slice(0, 50);
+  $("cb-msg").textContent = hits.length > 50 ? t("cbMore", hits.length) : hits.length ? "" : t("cbNone");
+  const have = new Set(rows.map((r) => r.key));
+  $("cb-body").innerHTML = cbList.map((k) => {
+    const o = DATA.objects[k], { idx, sub } = keyOf(k);
+    const s2 = o.a ? cbElement() : sub, rk = node + "-" + hex4(idx) + "-" + s2, inList = have.has(rk);
+    return '<tr><td class="code">' + esc(o.c || "0x" + hex4(idx)) + (o.a ? '<span class="cnt">:' + s2 + "</span>" : sub ? '<span class="cnt">:' + sub + "</span>" : "") +
+      '</td><td class="name">' + esc(nm(o)) + "</td><td>" + t({ P: "kindP", S: "kindS", C: "kindC" }[o.k]) +
+      '</td><td class="val"><button type="button" class="rd" data-cbr="' + k + '">' + esc(probe[rk] === undefined ? t("readBtn") : probe[rk]) +
+      '</button></td><td>' + (inList ? '<span class="note">' + t("cbInList") + "</span>"
+        : '<button type="button" class="sm ghost" data-cba="' + k + '">' + t("cbAdd") + "</button>") + "</td></tr>";
+  }).join("");
+}
+function cbElement() { const v = parseInt($("cb-el").value, 10); return v >= 1 && v <= 255 ? v : 1; }
+function cbTarget(k, el) {
+  const o = DATA.objects[k], { idx, sub } = keyOf(k);
+  return { node: +$("cb-node").value || 1, idx, sub: o.a ? (el || cbElement()) : sub, o };
+}
+function cbAdd(k, el) {
+  if (!lastRecs.length) { $("cb-msg").textContent = t("cbScanFirst"); return; }
+  const x = cbTarget(k, el);
+  addExtras([[x.node, x.idx, x.sub]]);
+  cbSearch();
+  $("cb-msg").textContent = (x.o.c || "0x" + hex4(x.idx)) + (x.o.a ? ":" + x.sub : "") + " " + t("cbAdded");
+}
+function openCb() {
+  $("cb-node").innerHTML = scanNodes().map((n) => '<option value="' + n + '">' + esc(nodeLabel(n)) + "</option>").join("");
+  const d = $("cb-dlg");
+  if (d.showModal) d.showModal(); else d.setAttribute("open", "");
+  $("cb-q").focus();
+  cbSearch();
+}
+$("btn-cb").addEventListener("click", openCb);
+$("cb-close").addEventListener("click", () => $("cb-dlg").close());
+for (const id of ["cb-q", "cb-node", "cb-el"]) $(id).addEventListener("input", cbSearch);
+$("cb-dlg").addEventListener("click", (e) => {
+  const rd = e.target.closest("[data-cbr]");
+  if (rd) {
+    const x = cbTarget(rd.dataset.cbr), rk = x.node + "-" + hex4(x.idx) + "-" + x.sub;
+    rd.textContent = "…";
+    readObj(x.node, x.idx, x.sub, x.o).then((txt) => { probe[rk] = txt; rd.textContent = txt; showProbe(rk, txt); });
+    return;
+  }
+  const ad = e.target.closest("[data-cba]");
+  if (ad) { cbAdd(ad.dataset.cba); return; }
+  if (e.target.closest("[data-alias]")) { const ab = $("cb-alias"); cbAdd(ab.dataset.k, +ab.dataset.el); }
+});
+
+// ---- objects outside the menu: let the ESP search the codebook ----
+// Step 1 asks for 32 objects at a time in one bulk GetList (/remeha/batch?m=g):
+// that returns every live value the appliance has. Settings are often not
+// returned by a GetList, so step 2 reads the remaining settings one by one (m=r).
+const BATCH = 32;
+let deepRun = null;
+function deepCandidates(nodes) {
+  const inMenu = new Set(rows.filter((r) => !r.extra).map((r) => r.node + "-" + r.idx));
+  const have = new Set(rows.map((r) => r.key));
+  const seen = new Set(), out = [];
+  for (const [k, o] of Object.entries(DATA.objects)) {
+    if (!readable(o)) continue;
+    const { idx, sub: s0 } = keyOf(k), sub = o.a ? 1 : s0;
+    if (idx < 0x2000) continue;  // CANopen communication objects
+    for (const node of nodes) {
+      const key = node + "-" + hex4(idx) + "-" + sub;
+      if (seen.has(key) || have.has(key) || inMenu.has(node + "-" + idx)) continue;
+      seen.add(key);
+      out.push({ node, idx, sub, o, key });
+    }
+  }
+  return out;
+}
+async function batchRead(mode, list, onProgress) {
+  const l = list.map((x) => hex2(x.node) + hex4(x.idx) + hex2(x.sub)).join(",");
+  const q = await (await fetch("/remeha/batch?m=" + mode + "&l=" + l, { cache: "no-store" })).json();
+  const limit = Date.now() + (mode === "g" ? 15000 : 8000 + list.length * 5000);
+  while (Date.now() < limit) {
+    await sleep(mode === "g" ? 200 : 350);
+    if (deepRun && deepRun.stop) throw new Error("stop");
+    const j = await (await fetch("/remeha/batch?t=" + Date.now(), { cache: "no-store" })).json();
+    if (j.id !== q.id) continue;
+    if (j.state !== "done") { if (onProgress && typeof j.done === "number") onProgress(j.done); continue; }
+    if (j.err) throw new Error(j.err);
+    return j.r || [];
+  }
+  throw new Error("timeout");
+}
+function deepUi(on) {
+  $("btn-deep").disabled = on; $("btn-cb").disabled = on; $("btn-scan").disabled = on;
+  $("btn-deep-stop").hidden = !on; $("deep-bar").hidden = !on;
+  $("deep-node-box").hidden = on || !scanNodes().includes(4);
+}
+function deepMsg(key, ...a) { $("deep-status").innerHTML = esc(t(key, ...a)); }
+async function deepScan() {
+  if (!lastRecs.length) { deepMsg("cbScanFirst"); return; }
+  const nodes = $("deep-node").checked ? scanNodes() : [scanNodes()[0]];
+  const cand = deepCandidates(nodes);
+  if (!cand.length) { deepMsg("deepNothing"); return; }
+  deepRun = { stop: false };
+  deepUi(true);
+  const found = [], params = [];
+  const bar = $("deep-bar");
+  const keep = (x, st, hex) => {
+    if (st !== 1) return false;
+    found.push([x.node, x.idx, x.sub]);
+    probe[x.key] = decodeValue(x.o, hexBytes(hex));
+    return true;
+  };
+  try {
+    bar.max = cand.length;
+    for (let i = 0; i < cand.length; i += BATCH) {
+      const part = cand.slice(i, i + BATCH);
+      const r = await batchRead("g", part);
+      part.forEach((x, k) => { const [st, hex] = r[k] || [0, ""]; if (!keep(x, st, hex) && x.o.k === "P") params.push(x); });
+      bar.value = Math.min(cand.length, i + BATCH);
+      deepMsg("deepP1", Math.min(cand.length, i + BATCH), cand.length, found.length);
+    }
+    bar.max = params.length || 1; bar.value = 0;
+    for (let i = 0; i < params.length; i += BATCH) {
+      const part = params.slice(i, i + BATCH);
+      const show = (d) => { bar.value = i + d; deepMsg("deepP2", i + d, params.length, found.length); };
+      show(0);
+      const r = await batchRead("r", part, show);
+      part.forEach((x, k) => { const [st, hex] = r[k] || [0, ""]; keep(x, st, hex); });
+      show(part.length);
+    }
+    addExtras(found);
+    deepMsg("deepDone", found.length);
+  } catch (e) {
+    addExtras(found);
+    if (e.message === "stop") deepMsg("deepStopped", found.length);
+    else deepMsg("deepErr", e.message === "no_link" ? t("errNoLink") : e.message === "timeout" ? t("errTimeout") : e.message);
+  }
+  deepRun = null;
+  deepUi(false);
+  render();
+}
+$("btn-deep").addEventListener("click", deepScan);
+$("btn-deep-stop").addEventListener("click", () => { if (deepRun) deepRun.stop = true; });
 
 // ---- start ----
 (function init() {
