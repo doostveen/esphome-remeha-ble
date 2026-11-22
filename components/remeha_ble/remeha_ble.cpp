@@ -1067,7 +1067,7 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
       batch_pos_ < batch_keys_.size()) {
     uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
     if (key == batch_keys_[batch_pos_]) {
-      batch_store_(batch_pos_, op == 0x01 ? 1 : 2, &m[11], end - 11);
+      batch_store_(batch_pos_, op == 0x01 ? (end > 11 ? 1 : 0) : 2, &m[11], end - 11);
       batch_wait_ = false;
       batch_pos_++;
       batch_next_();
@@ -1078,19 +1078,32 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
       poll_wait_ = false;  // the poll's own answer: handled below
     } else if (batch_mode_ == 'g' && batch_wait_) {
       // answer to the configurator's batch GetList (same entry format as below)
-      size_t i = 8;
+      size_t i = 8, recs = 0, ok = 0;
       while (i + 8 <= end) {
+        uint8_t flag = m[i];
         uint8_t node = m[i + 1];
         uint16_t index = (uint16_t) (m[i + 2] << 8) | m[i + 3];
         uint8_t sub = m[i + 4];
         uint16_t status = (uint16_t) (m[i + 5] << 8) | m[i + 6];
         uint8_t len = m[i + 7];
         if (i + 8 + len > end) break;
+        recs++;
         uint32_t key = ((uint32_t) node << 24) | ((uint32_t) index << 8) | sub;
         for (size_t k = 0; k < batch_keys_.size(); k++) {
-          if (batch_keys_[k] == key && batch_st_[k] == 0 && status == 0x0000) batch_store_(k, 1, &m[i + 8], len);
+          if (batch_keys_[k] == key && batch_st_[k] == 0 && status == 0x0000 && len > 0) {
+            batch_store_(k, 1, &m[i + 8], len);
+            batch_flag_[k] = flag;
+            ok++;
+          }
         }
         i += 8 + len;
+      }
+      // diagnostics: what a GetList with unknown objects looks like on this appliance
+      ESP_LOGI(TAG, "zoeken buiten menu: %u gevraagd, %u records terug, %u met waarde",
+               (unsigned) batch_keys_.size(), (unsigned) recs, (unsigned) ok);
+      if (batch_log_left_ > 0) {
+        batch_log_left_--;
+        ESP_LOGI(TAG, "zoeken buiten menu, antwoord: %s", tohex(m.data(), std::min<size_t>(m.size(), 120)).c_str());
       }
       batch_wait_ = false;
       batch_finish_(nullptr);
@@ -1506,8 +1519,9 @@ void RemehaBle::batch_next_() {
   batch_json_ = buf;
 }
 
-// Result per key, in the order of the request: [status, "hex"]. Status 0 = not
-// available, 1 = value, 2 = refused (hex = abort code), 3 = no answer.
+// Result per key, in the order of the request: [status, "hex", flag]. Status 0 =
+// not available, 1 = value, 2 = refused (hex = abort code), 3 = no answer; flag is
+// the GetList record flag (2 = typed value), 1 for single reads.
 void RemehaBle::batch_finish_(const char *err) {
   batch_mode_ = 0;
   batch_wait_ = false;
@@ -1526,7 +1540,9 @@ void RemehaBle::batch_finish_(const char *err) {
     j += (char) ('0' + batch_st_[k]);
     j += ",\"";
     j += batch_hex_[k];
-    j += "\"]";
+    j += "\",";
+    j += (char) ('0' + (batch_flag_[k] & 7));
+    j += ']';
   }
   j += "]}";
   batch_json_.swap(j);
@@ -1602,6 +1618,7 @@ void RemehaBle::loop() {
       batch_keys_ = batch_req_keys_;
     }
     batch_st_.assign(batch_keys_.size(), 0);
+    batch_flag_.assign(batch_keys_.size(), 1);
     batch_hex_.assign(batch_keys_.size(), std::string());
     batch_q_.clear();
     batch_wait_ = false;

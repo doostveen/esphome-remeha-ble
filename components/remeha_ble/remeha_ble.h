@@ -231,6 +231,8 @@ class RemehaBle : public PollingComponent,
   char batch_mode_{0};             // 0 idle, 'g' or 'r' running
   std::vector<uint32_t> batch_keys_;
   std::vector<uint8_t> batch_st_;  // per key: 0 not available, 1 value, 2 refused, 3 no answer
+  std::vector<uint8_t> batch_flag_;  // GetList record flag (0x02 = typed value)
+  uint8_t batch_log_left_{2};      // log the raw answer of the first batches
   std::vector<std::string> batch_hex_;
   size_t batch_pos_{0};            // mode 'r': key in flight
   bool batch_wait_{false};         // a batch request is on the air
