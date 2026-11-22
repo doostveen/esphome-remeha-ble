@@ -260,6 +260,9 @@ class RemehaBle : public PollingComponent,
   bool tx_busy_{false};
   uint32_t tx_start_{0};          // millis() when the current TX frame began (stuck-TX watchdog)
   std::vector<uint8_t> rx_msg_;   // CANIP notify reassembly
+  uint8_t rx_next_{0};            // next expected fragment number
+  bool rx_bad_{false};            // a fragment of this message went missing
+  uint32_t rx_dropped_{0};
   uint32_t responses_{0};
   uint32_t last_rx_{0};           // millis() of last reassembled response (RUN liveness watchdog)
   uint32_t reconnects_{0};        // total forced reconnects since boot (diagnostic)

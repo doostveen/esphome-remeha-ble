@@ -13,6 +13,12 @@
   a Confida 40). The list now ends at the first record that cannot be real, in the scan
   and when taking over limits for numbers and selects. Older scans in the browser are
   filtered too; scanning again is better.
+- **Fix:** an answer with a lost Bluetooth fragment was glued to the next answer,
+  which then failed its CRC check as well. A gap in the fragment count now drops just
+  that answer (logged as a warning), and a reassembled message is capped at 2 kB.
+- **Fix:** every Bluetooth device in range was remembered to log it once. Phones change
+  their address every few minutes, so over days this ate the heap of the ESP (slow web
+  page, slow OTA). Only named devices are logged now, at most 48.
 - The Remeha **Elga Ace** (controlbox, article number 7854722) is recognised by name
   (thanks andrePKI).
 

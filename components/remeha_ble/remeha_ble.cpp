@@ -68,6 +68,8 @@ namespace remeha_ble {
 
 static const char *const TAG = "remeha_ble";
 static const size_t FRAG_DATA = 19;
+static const size_t SEEN_MAX = 48;      // named BLE devices logged once (bounded)
+static const size_t RX_MAX = 2048;      // longest reassembled message we accept
 
 // RUN-phase watchdog thresholds (ms). The poll interval is 30 s, so RUN_RX_TIMEOUT
 // is ~6 missed polls of silence before we give up on the link; TX_STUCK is how long
@@ -255,13 +257,15 @@ bool RemehaBle::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
            (unsigned) ((addr >> 40) & 0xFF), (unsigned) ((addr >> 32) & 0xFF), (unsigned) ((addr >> 24) & 0xFF),
            (unsigned) ((addr >> 16) & 0xFF), (unsigned) ((addr >> 8) & 0xFF), (unsigned) (addr & 0xFF));
 
-  // Log every distinct BLE device once (diagnostics + so a user with multiple
-  // appliances can read off which MAC to put in the YAML). Always, so that the
-  // log confirms the scan listener is actually receiving advertisements.
-  if (seen_.find(addr) == seen_.end()) {
+  // Log every distinct NAMED BLE device once, so a user with several appliances
+  // can read off which MAC to put in the YAML. Devices without a name (phones and
+  // the like, which change their address every few minutes) are not kept: the set
+  // of seen addresses would otherwise keep growing and eat the heap over days.
+  if (name.empty()) {
+    ESP_LOGV(TAG, "BLE gezien: %s (zonder naam) rssi=%d", mac, device.get_rssi());
+  } else if (seen_.size() < SEEN_MAX && seen_.find(addr) == seen_.end()) {
     seen_.insert(addr);
-    ESP_LOGI(TAG, "BLE gezien: %s  naam='%s'  rssi=%d",
-             mac, name.c_str(), device.get_rssi());
+    ESP_LOGI(TAG, "BLE gezien: %s  naam='%s'  rssi=%d", mac, name.c_str(), device.get_rssi());
   }
 
   // Only in scan-mode: first device whose name matches -> pin its MAC on the
@@ -344,7 +348,7 @@ void RemehaBle::pairing_failed_(const uint8_t *bda, uint8_t reason) {
   if (reconnect_sensor_ != nullptr) reconnect_sensor_->publish_state((float) reconnects_);
   st_ = ST_INIT;
   tx_busy_ = false;
-  rx_msg_.clear(); indiv_q_.clear();
+  rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; indiv_q_.clear();
   this->parent()->set_enabled(false);  // disconnects AND stops ble_client from reconnecting
 }
 
@@ -483,7 +487,7 @@ void RemehaBle::start_notify_() {
 
 void RemehaBle::gate_trigger_() {
   st_ = ST_GATE_WAIT_CHAL;
-  rx_msg_.clear();
+  rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0;
   // The appliance issues the challenge only on a ZERO-length Write Request to
   // 0x1B. esp_ble_gattc_write_char refuses len 0, but write_char_descr accepts
   // (value==nullptr && len==0) and emits the same ATT Write Request (0x12) to
@@ -497,7 +501,7 @@ void RemehaBle::gate_trigger_() {
 
 void RemehaBle::canip_start_() {
   st_ = ST_CANIP_WAIT_CHAL;
-  rx_msg_.clear();
+  rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0;
   static const uint8_t f[] = {0xff, 0x01, 0x02, 0x01, 0x00, 0x02, 0x00, 0x03, 0x23, 0xd6};
   ESP_LOGI(TAG, ">> canip: session start");
   write_raw_(h_canip_w_, f, sizeof(f));
@@ -626,9 +630,28 @@ void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         canip_start_();
       } else if (h == h_canip_n_) {
         if (n < 1) break;
+        // Reassembly: fragments count 0, 1, 2, ... and the last one is 0xFF. A
+        // fragment 0 starts a new message; a gap in the count (a lost
+        // notification) spoils the message, which is then dropped as a whole
+        // instead of being glued to the next one (that gave CRC errors).
         uint8_t seq = v[0];
-        rx_msg_.insert(rx_msg_.end(), v + 1, v + n);
+        if (seq == 0) { rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; }
+        if (seq != 0xFF) {
+          if (seq != rx_next_) rx_bad_ = true;
+          rx_next_ = seq + 1;
+        }
+        if (!rx_bad_) rx_msg_.insert(rx_msg_.end(), v + 1, v + n);
+        if (rx_msg_.size() > RX_MAX) { rx_msg_.clear(); rx_bad_ = true; }
         if (seq != 0xFF) break;
+        if (rx_bad_) {
+          rx_dropped_++;
+          ESP_LOGW(TAG, "antwoord met ontbrekend fragment weggegooid (%u keer sinds start)", (unsigned) rx_dropped_);
+          rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0;
+          // the request is lost: let the chain continue with the next read
+          if (st_ == ST_RUN) { if (tx_busy_) chain_next_ = true; else send_next_individual_(); }
+          break;
+        }
+        rx_next_ = 0;
         auto m = rx_msg_; rx_msg_.clear();
         if (st_ == ST_RUN) {
           responses_++;
@@ -650,7 +673,7 @@ void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       st_ = ST_INIT; h_canip_w_ = h_canip_n_ = h_1b_ = h_1d_ = h_20_ = h_22_ = h_13_ = 0;
       cccd_1d_ = cccd_22_ = cccd_canip_ = cccd_13_ = 0;
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
-      tx_busy_ = false; rx_msg_.clear(); tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
+      tx_busy_ = false; rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
       chain_next_ = false; poll_wait_ = false;
       menu_q_.clear(); menu_left_ = 0; id_left_ = 0;  // not finished: read again after reconnect
       if (scan_state_ == 2) { scan_left_ = 0; scan_inflight_ = false; scan_pending_ = true; scan_state_ = 1; update_scan_json_(); }
@@ -801,7 +824,7 @@ void RemehaBle::set_active(bool a) {
     ESP_LOGW(TAG, "uitlezing VRIJGEGEVEN - BLE loslaten (telefoon/installateur kan verbinden)");
     if (reason_ts_ != nullptr) reason_ts_->publish_state("vrijgegeven");
     st_ = ST_INIT;
-    tx_busy_ = false; rx_msg_.clear(); indiv_q_.clear(); tx_queue_.clear();
+    tx_busy_ = false; rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; indiv_q_.clear(); tx_queue_.clear();
     this->parent()->set_enabled(false);  // verbreekt de verbinding EN stopt herverbinden
   }
 }
@@ -908,7 +931,7 @@ void RemehaBle::force_reconnect_(const char *why) {
   st_ = ST_INIT;
   tx_busy_ = false;
   poll_wait_ = false;
-  rx_msg_.clear(); indiv_q_.clear();
+  rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; indiv_q_.clear();
   esp_ble_gattc_close(this->parent()->get_gattc_if(), this->parent()->get_conn_id());
 }
 
