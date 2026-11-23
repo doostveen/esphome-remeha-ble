@@ -108,22 +108,15 @@ For most installations the controller is the one you want.
 
 ### Objects outside the menu
 
-The scan shows what the appliance lists in its own menu description, which is the
-menu of its display. The Remeha app shows more, for example the evaporator and
+The scan shows the list of settings and measurements the appliance keeps itself. That
+is not every value there is: the Remeha app also shows, for example, the evaporator and
 condenser temperature of the outdoor unit. Almost all of those objects are in the
-codebook, and there are two ways to get them into the configurator:
-
-- **+ From codebook** opens a search by code, index or name. **Read** shows at once
-  whether the object exists on your appliance; **Add** puts it in the table as a row
-  marked *not in menu*. A code from the Remeha app that does not exist in the codebook,
-  such as `AC089` or `CP083`, is usually an element of an array (`AC088` element 2,
-  `CP080` activity 4); the search says so.
-- **Search outside the menu** lets the ESP try every codebook object that is not in
-  the menu (read only). Step 1 asks for the measurements and counters in groups of 32
-  and takes about a minute; step 2 reads the remaining settings one by one and
-  takes a few minutes. While it runs, the normal reading pauses. Everything that
-  returns a value is added as *not in menu*; choose *Show: not in menu only* to see
-  them.
+codebook. **+ From codebook** opens a search by code, index or name. **Read** shows at
+once whether the object gives a sensible value on your appliance; **Add** puts it in
+the table as a row marked *not in menu* (*Show: not in menu only* lists them). A code
+from the Remeha app that does not exist in the codebook, such as `AC089` or `CP083`, is
+usually an element of an array (`AC088` element 2, `CP080` activity 4); the search says
+so. *Clear not-in-menu rows* removes the rows you added but did not choose.
 
 An object outside the menu has no limits from the appliance: an adjustable entity for
 it has no minimum or maximum reported by the appliance, so only make one if you know

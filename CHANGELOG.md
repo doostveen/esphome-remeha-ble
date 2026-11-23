@@ -4,12 +4,8 @@
 
 - **Objects outside the menu** in the configurator. *+ From codebook* searches the
   codebook by code, index or name, reads an object once and adds it to the table.
-  *Search outside the menu* lets the ESP try every codebook object that is not in the
-  appliance's menu (new endpoint `/remeha/batch`: a bulk GetList for measurements and
-  counters, then single reads for settings) and adds what returns a value. Codes from
-  the Remeha app for array elements (such as `AC089`, `CP083`) are recognised.
-  Answers that mean "no value" (empty, 0xFFFF, a not-fitted sensor) do not count as
-  found, and *Clear not-in-menu rows* removes unchosen finds again.
+  Codes from the Remeha app for array elements (such as `AC089`, `CP083`) are
+  recognised. *Clear not-in-menu rows* removes added rows that are not chosen.
 - **Fix:** the scan read past the end of the menu description (0x502B) and showed the
   data there as objects with nonsense ranges and levels (seen on an Elga Ace; a few on
   a Confida 40). The list now ends at the first record that cannot be real, in the scan

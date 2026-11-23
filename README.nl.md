@@ -110,22 +110,16 @@ objecten. Voor de meeste installaties wil je die van de regelaar.
 
 ### Objecten buiten het menu
 
-De scan laat zien wat het toestel in zijn eigen menubeschrijving opgeeft: het menu van
-het display. De Remeha-app toont meer, bijvoorbeeld de verdamper- en
-condensortemperatuur van de buitenunit. Bijna al die objecten staan in het codeboek,
-en je krijgt ze op twee manieren in de configurator:
-
-- **+ Uit codeboek** opent een zoekvak op code, index of naam. **Lees** laat meteen
-  zien of het object op jouw toestel bestaat; **Toevoegen** zet het als regel met
-  *buiten menu* in de tabel. Een code uit de Remeha-app die niet in het codeboek staat,
-  zoals `AC089` of `CP083`, is meestal een element van een lijst (`AC088` element 2,
-  `CP080` activiteit 4); het zoekvak meldt dat.
-- **Zoek buiten het menu** laat de ESP elk codeboekobject proberen dat niet in het
-  menu staat (alleen lezen). Stap 1 vraagt de meetwaarden en tellers op in groepjes
-  van 32 en duurt ongeveer een minuut; stap 2 leest de overige instellingen een
-  voor een en duurt een paar minuten. Zolang dat loopt, staat het gewone uitlezen
-  stil. Alles wat een waarde geeft, komt erbij als *buiten menu*; kies *Tonen: alleen
-  buiten menu* om ze te zien.
+De scan laat de lijst zien die het toestel zelf bijhoudt van zijn instellingen en
+meetwaarden. Dat zijn niet alle waarden die er zijn: de Remeha-app toont bijvoorbeeld
+ook de verdamper- en condensortemperatuur van de buitenunit. Bijna al die objecten
+staan in het codeboek. **+ Uit codeboek** opent een zoekvak op code, index of naam.
+**Lees** laat meteen zien of het object op jouw toestel een zinnige waarde geeft;
+**Toevoegen** zet het als regel met *buiten menu* in de tabel (*Tonen: alleen buiten
+menu* laat ze zien). Een code uit de Remeha-app die niet in het codeboek staat, zoals
+`AC089` of `CP083`, is meestal een element van een lijst (`AC088` element 2, `CP080`
+activiteit 4); het zoekvak meldt dat. *Buiten-menu-regels wissen* haalt de regels weg
+die je hebt toegevoegd maar niet gekozen.
 
 Een object buiten het menu heeft geen grenzen van het toestel: een instelbare entiteit
 ervoor kent geen minimum of maximum van het toestel, dus maak die alleen als je weet

@@ -674,7 +674,7 @@ void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       cccd_1d_ = cccd_22_ = cccd_canip_ = cccd_13_ = 0;
       reg_done_ = descr_done_ = notify_expected_ = 0; dumped_ = false;
       tx_busy_ = false; rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; tx_msg_.clear(); tx_queue_.clear(); indiv_q_.clear();
-      chain_next_ = false; poll_wait_ = false;
+      chain_next_ = false;
       menu_q_.clear(); menu_left_ = 0; id_left_ = 0;  // not finished: read again after reconnect
       if (scan_state_ == 2) { scan_left_ = 0; scan_inflight_ = false; scan_pending_ = true; scan_state_ = 1; update_scan_json_(); }
       if (!dump_q_.empty() || dump_left_ > 0) ESP_LOGW(TAG, "DUMP afgebroken door verbroken verbinding");
@@ -770,16 +770,6 @@ void RemehaBle::queue_individual_reads_() {
 bool RemehaBle::send_next_individual_() {
   if (tx_busy_) return false;
   if (indiv_q_.empty()) {
-    // a batch read for the configurator; never while the poll GetList is on the
-    // air, because both answers are op 0x09 and are told apart by that order
-    if (!batch_q_.empty() && !poll_wait_) {
-      auto f = batch_q_.front();
-      batch_q_.erase(batch_q_.begin());
-      batch_wait_ = true;
-      batch_ms_ = millis();
-      start_tx_(std::move(f));
-      return true;
-    }
     if (!menu_q_.empty()) {  // menu descriptor blocks (once per boot)
       auto f = menu_q_.front();
       menu_q_.erase(menu_q_.begin());
@@ -878,9 +868,6 @@ void RemehaBle::update() {
     // Individual reads from the previous cycle still draining (recovery if a
     // response was missed; normally they chain off each response, see NOTIFY).
     if (send_next_individual_()) return;
-    // while the configurator searches outside the menu, the normal poll waits
-    // (its reads would only slow the search down; values resume afterwards)
-    if (batch_mode_ != 0) return;
     start_poll_cycle_();
     return;
   }
@@ -910,8 +897,6 @@ void RemehaBle::update() {
 // Start a fresh cycle: one bulk GetList, then queue the single-read items.
 void RemehaBle::start_poll_cycle_() {
   build_request_();
-  poll_wait_ = true;
-  poll_ms_ = millis();
   tx_off_ = 0; tx_seq_ = 0; tx_busy_ = true; tx_start_ = millis();
   ESP_LOGD(TAG, "polling: GetList (%d bytes), responses %u", (int) tx_msg_.size(), (unsigned) responses_);
   queue_individual_reads_();
@@ -930,7 +915,6 @@ void RemehaBle::force_reconnect_(const char *why) {
   if (reconnect_sensor_ != nullptr) reconnect_sensor_->publish_state((float) reconnects_);
   st_ = ST_INIT;
   tx_busy_ = false;
-  poll_wait_ = false;
   rx_msg_.clear(); rx_bad_ = false; rx_next_ = 0; indiv_q_.clear();
   esp_ble_gattc_close(this->parent()->get_gattc_if(), this->parent()->get_conn_id());
 }
@@ -1063,53 +1047,6 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
   }
   const size_t end = m.size() - 2;
   uint8_t op = m[5];  // 0x09 = bulk GetList response, 0x01 = individual read response, 0x05 = write response
-  if ((op == 0x01 || op == 0x02) && batch_mode_ == 'r' && batch_wait_ && end >= 11 &&
-      batch_pos_ < batch_keys_.size()) {
-    uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
-    if (key == batch_keys_[batch_pos_]) {
-      batch_store_(batch_pos_, op == 0x01 ? (end > 11 ? 1 : 0) : 2, &m[11], end - 11);
-      batch_wait_ = false;
-      batch_pos_++;
-      batch_next_();
-    }
-  }
-  if (op == 0x09) {
-    if (poll_wait_) {
-      poll_wait_ = false;  // the poll's own answer: handled below
-    } else if (batch_mode_ == 'g' && batch_wait_) {
-      // answer to the configurator's batch GetList (same entry format as below)
-      size_t i = 8, recs = 0, ok = 0;
-      while (i + 8 <= end) {
-        uint8_t flag = m[i];
-        uint8_t node = m[i + 1];
-        uint16_t index = (uint16_t) (m[i + 2] << 8) | m[i + 3];
-        uint8_t sub = m[i + 4];
-        uint16_t status = (uint16_t) (m[i + 5] << 8) | m[i + 6];
-        uint8_t len = m[i + 7];
-        if (i + 8 + len > end) break;
-        recs++;
-        uint32_t key = ((uint32_t) node << 24) | ((uint32_t) index << 8) | sub;
-        for (size_t k = 0; k < batch_keys_.size(); k++) {
-          if (batch_keys_[k] == key && batch_st_[k] == 0 && status == 0x0000 && len > 0) {
-            batch_store_(k, 1, &m[i + 8], len);
-            batch_flag_[k] = flag;
-            ok++;
-          }
-        }
-        i += 8 + len;
-      }
-      // diagnostics: what a GetList with unknown objects looks like on this appliance
-      ESP_LOGI(TAG, "zoeken buiten menu: %u gevraagd, %u records terug, %u met waarde",
-               (unsigned) batch_keys_.size(), (unsigned) recs, (unsigned) ok);
-      if (batch_log_left_ > 0) {
-        batch_log_left_--;
-        ESP_LOGI(TAG, "zoeken buiten menu, antwoord: %s", tohex(m.data(), std::min<size_t>(m.size(), 120)).c_str());
-      }
-      batch_wait_ = false;
-      batch_finish_(nullptr);
-      return;
-    }
-  }
   if ((op == 0x01 || op == 0x02) && probe_inflight_ && end >= 11) {
     uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
     if (key == probe_expect_) probe_done_(op == 0x01, &m[11], end - 11, nullptr);
@@ -1475,79 +1412,6 @@ void RemehaBle::probe_done_(bool ok, const uint8_t *d, size_t len, const char *e
   probe_json_.swap(j);
 }
 
-// ---- configurator: read a list of objects (search outside the menu) ----
-static const size_t BATCH_MAX = 32;
-
-std::string RemehaBle::batch_request(char mode, const std::vector<uint32_t> &keys) {
-  std::lock_guard<std::mutex> lock(scan_mtx_);
-  batch_req_mode_ = mode == 'r' ? 'r' : 'g';
-  batch_req_keys_.assign(keys.begin(), keys.begin() + std::min(keys.size(), BATCH_MAX));
-  batch_id_++;
-  char buf[48];
-  snprintf(buf, sizeof(buf), "{\"state\":\"pending\",\"id\":%u,\"done\":0}", (unsigned) batch_id_);
-  batch_json_ = buf;
-  batch_req_.store(true);
-  return batch_json_;
-}
-
-std::string RemehaBle::batch_poll() {
-  std::lock_guard<std::mutex> lock(scan_mtx_);
-  return batch_json_;
-}
-
-void RemehaBle::batch_store_(size_t k, uint8_t st, const uint8_t *d, size_t len) {
-  if (k >= batch_st_.size()) return;
-  batch_st_[k] = st;
-  static const char HEX[] = "0123456789abcdef";
-  std::string h;
-  if (len > 32) len = 32;
-  for (size_t i = 0; i < len; i++) { h += HEX[d[i] >> 4]; h += HEX[d[i] & 15]; }
-  batch_hex_[k] = std::move(h);
-}
-
-// Mode 'r': queue the read of the next key, or finish when all are done.
-void RemehaBle::batch_next_() {
-  batch_q_.clear();
-  if (batch_pos_ >= batch_keys_.size()) { batch_finish_(nullptr); return; }
-  uint32_t key = batch_keys_[batch_pos_];
-  batch_q_.push_back(build_read_frame_((uint8_t) (key >> 24), (uint16_t) (key >> 8), (uint8_t) key));
-  std::lock_guard<std::mutex> lock(scan_mtx_);
-  if (batch_req_.load()) return;
-  char buf[56];
-  snprintf(buf, sizeof(buf), "{\"state\":\"pending\",\"id\":%u,\"done\":%u}", (unsigned) batch_id_,
-           (unsigned) batch_pos_);
-  batch_json_ = buf;
-}
-
-// Result per key, in the order of the request: [status, "hex", flag]. Status 0 =
-// not available, 1 = value, 2 = refused (hex = abort code), 3 = no answer; flag is
-// the GetList record flag (2 = typed value), 1 for single reads.
-void RemehaBle::batch_finish_(const char *err) {
-  batch_mode_ = 0;
-  batch_wait_ = false;
-  batch_q_.clear();
-  std::string j;
-  j.reserve(48 + batch_keys_.size() * 24);
-  char buf[64];
-  std::lock_guard<std::mutex> lock(scan_mtx_);
-  if (batch_req_.load()) return;  // a newer request is waiting; that one answers
-  snprintf(buf, sizeof(buf), "{\"state\":\"done\",\"id\":%u,\"err\":\"%s\",\"r\":[", (unsigned) batch_id_,
-           err != nullptr ? err : "");
-  j += buf;
-  for (size_t k = 0; k < batch_keys_.size(); k++) {
-    if (k) j += ',';
-    j += '[';
-    j += (char) ('0' + batch_st_[k]);
-    j += ",\"";
-    j += batch_hex_[k];
-    j += "\",";
-    j += (char) ('0' + (batch_flag_[k] & 7));
-    j += ']';
-  }
-  j += "]}";
-  batch_json_.swap(j);
-}
-
 // ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
 // Reads: 0x2000:09 + 0x3047 (identification) and 0x502B:1..20 on node 1 (EHC
 // regelaar) and node 4 (SCB uitbreiding). One read at a time; every menu block is
@@ -1610,58 +1474,6 @@ void RemehaBle::loop() {
     }
   }
   if (probe_inflight_ && millis() - probe_ms_ > 10000) probe_done_(false, nullptr, 0, "timeout");
-  // configurator batch read (search outside the menu)
-  if (batch_req_.exchange(false)) {
-    {
-      std::lock_guard<std::mutex> lock(scan_mtx_);
-      batch_mode_ = batch_req_mode_;
-      batch_keys_ = batch_req_keys_;
-    }
-    batch_st_.assign(batch_keys_.size(), 0);
-    batch_flag_.assign(batch_keys_.size(), 1);
-    batch_hex_.assign(batch_keys_.size(), std::string());
-    batch_q_.clear();
-    batch_wait_ = false;
-    batch_pos_ = 0;
-    if (st_ != ST_RUN) {
-      batch_finish_("no_link");
-    } else if (batch_mode_ == 'g') {
-      std::vector<uint8_t> f = {0x01, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00, (uint8_t) batch_keys_.size()};
-      for (uint32_t key : batch_keys_) {
-        f.push_back(0x00);
-        f.push_back((uint8_t) (key >> 24));
-        f.push_back((uint8_t) (key >> 16));
-        f.push_back((uint8_t) (key >> 8));
-        f.push_back((uint8_t) key);
-      }
-      uint16_t c = crc_modbus_(f.data(), f.size());
-      f.push_back((uint8_t) (c >> 8));
-      f.push_back((uint8_t) (c & 0xFF));
-      batch_q_.push_back(std::move(f));
-    } else {
-      batch_next_();
-    }
-    if (batch_mode_ != 0 && !tx_busy_) send_next_individual_();
-  }
-  if (batch_mode_ != 0) {
-    if (st_ != ST_RUN) {
-      batch_finish_("no_link");
-    } else if (batch_wait_ && millis() - batch_ms_ > (batch_mode_ == 'g' ? 8000u : 4000u)) {
-      batch_wait_ = false;
-      if (batch_mode_ == 'g') {
-        for (auto &st : batch_st_) if (st == 0) st = 3;
-        batch_finish_("timeout");
-      } else {
-        batch_store_(batch_pos_, 3, nullptr, 0);
-        batch_pos_++;
-        batch_next_();
-        if (!tx_busy_) send_next_individual_();
-      }
-    } else if (!batch_wait_ && !batch_q_.empty() && !tx_busy_ && !poll_wait_ && indiv_q_.empty()) {
-      send_next_individual_();  // e.g. it waited for the poll GetList
-    }
-  }
-  if (poll_wait_ && millis() - poll_ms_ > 10000) poll_wait_ = false;  // its answer got lost
   if (scan_req_.exchange(false)) {
     if (scan_state_ == 2) {
       // already reading: start over (the page lost its data, e.g. after a reload)

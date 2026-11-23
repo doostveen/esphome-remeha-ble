@@ -101,7 +101,6 @@ tr.sub td.code { padding-left: 34px; color: var(--muted); }
 tr.sub td.name { color: var(--muted); }
 tr.parent td { border-bottom-style: dashed; }
 .outside { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
-progress { width: 100%; max-width: 420px; height: 8px; accent-color: var(--accent); }
 dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); padding: 18px; width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog::backdrop { background: rgba(10, 20, 26, .45); }
 dialog .dlg { display: grid; gap: 12px; }
@@ -187,13 +186,9 @@ button.sm { padding: 2px 10px; font-size: .82rem; }
       <p class="note" data-i18n="outsideNote"></p>
       <div class="row">
         <button id="btn-cb" type="button" class="ghost" data-i18n="cbBtn"></button>
-        <button id="btn-deep" type="button" class="ghost" data-i18n="deepBtn"></button>
-        <label class="check" id="deep-node-box" hidden><input id="deep-node" type="checkbox"> <span data-i18n="deepNode"></span></label>
-        <button id="btn-deep-stop" type="button" class="chip" data-i18n="deepStop" hidden></button>
         <button id="btn-extra-clear" type="button" class="chip" data-i18n="extraClear"></button>
       </div>
-      <progress id="deep-bar" max="1" value="0" hidden></progress>
-      <div id="deep-status" class="status" aria-live="polite"></div>
+      <div id="outside-status" class="status" aria-live="polite"></div>
     </div>
     <div class="toolbar">
       <label class="search"><span data-i18n="lSearch"></span>
@@ -330,12 +325,8 @@ const I18N = {
     errNotExist: "bestaat niet",
     errNoAccess: "geen toegang",
     errOther: "fout {0}",
-    cbBtn: "+ Uit codeboek", deepBtn: "Zoek buiten het menu", deepNode: "ook de uitbreidingsprint", deepStop: "Stoppen", extraClear: "Buiten-menu-regels wissen", extraCleared: "{0} regels buiten menu gewist (gekozen regels blijven staan).",
-    outsideNote: "Scan toestel leest de lijst die het toestel zelf bijhoudt van zijn instellingen en meetwaarden. Dat zijn niet alle waarden die er zijn: de Remeha-app toont bijvoorbeeld ook de verdamper- en condensortemperatuur. Zulke waarden kun je hier toevoegen. Zoek ze op in het codeboek, of laat de ESP alle overige waarden uit het codeboek proberen (alleen lezen, een paar minuten). Ze staan in de tabel als buiten menu.",
-    deepP1: "Stap 1 van 2, meetwaarden en tellers: {0} van {1} · {2} gevonden",
-    deepP2: "Stap 2 van 2, instellingen: {0} van {1} · {2} gevonden",
-    deepDone: "Klaar: {0} objecten gevonden buiten het menu. Je ziet ze met Tonen: alleen buiten menu.",
-    deepStopped: "Gestopt: {0} objecten gevonden tot nu toe.", deepErr: "Afgebroken: {0}.", deepNothing: "Niets meer te zoeken: alles uit het codeboek staat al in de lijst.",
+    cbBtn: "+ Uit codeboek", extraClear: "Buiten-menu-regels wissen", extraCleared: "{0} regels buiten menu gewist (gekozen regels blijven staan).",
+    outsideNote: "Scan toestel leest de lijst die het toestel zelf bijhoudt van zijn instellingen en meetwaarden. Dat zijn niet alle waarden die er zijn: de Remeha-app toont bijvoorbeeld ook de verdamper- en condensortemperatuur. Zulke waarden kun je hier toevoegen. Zoek ze op in het codeboek en lees eerst of ze op jouw toestel een zinnige waarde geven. Ze staan in de tabel als buiten menu.",
     sExtra: "alleen buiten menu",
     cbTitle: "Object uit het codeboek toevoegen", cbSearch: "Zoek op code, index of naam", cbPh: "bv. HM097, 0x434E of verdamper",
     cbNode: "Print", cbEl: "Element", cbAdd: "Toevoegen", cbAdded: "toegevoegd", cbInList: "in de lijst", cbClose: "Sluiten",
@@ -397,12 +388,8 @@ const I18N = {
     errNotExist: "does not exist",
     errNoAccess: "no access",
     errOther: "error {0}",
-    cbBtn: "+ From codebook", deepBtn: "Search outside the menu", deepNode: "include the extension board", deepStop: "Stop", extraClear: "Clear not-in-menu rows", extraCleared: "{0} not-in-menu rows cleared (chosen rows stay).",
-    outsideNote: "Scan appliance reads the list of settings and measurements the appliance keeps itself. That is not every value there is: the Remeha app also shows, for example, the evaporator and condenser temperature. You can add such values here. Look them up in the codebook, or let the ESP try all other values from the codebook (read only, a few minutes). They show in the table as not in menu.",
-    deepP1: "Step 1 of 2, measurements and counters: {0} of {1} · {2} found",
-    deepP2: "Step 2 of 2, settings: {0} of {1} · {2} found",
-    deepDone: "Done: {0} objects found outside the menu. Show them with Show: not in menu only.",
-    deepStopped: "Stopped: {0} objects found so far.", deepErr: "Aborted: {0}.", deepNothing: "Nothing left to search: everything from the codebook is in the list already.",
+    cbBtn: "+ From codebook", extraClear: "Clear not-in-menu rows", extraCleared: "{0} not-in-menu rows cleared (chosen rows stay).",
+    outsideNote: "Scan appliance reads the list of settings and measurements the appliance keeps itself. That is not every value there is: the Remeha app also shows, for example, the evaporator and condenser temperature. You can add such values here. Look them up in the codebook and read them first to see whether they give a sensible value on your appliance. They show in the table as not in menu.",
     sExtra: "not in menu only",
     cbTitle: "Add an object from the codebook", cbSearch: "Search by code, index or name", cbPh: "e.g. HM097, 0x434E or evaporator",
     cbNode: "Board", cbEl: "Element", cbAdd: "Add", cbAdded: "added", cbInList: "in the list", cbClose: "Close",
@@ -464,12 +451,8 @@ const I18N = {
     errNotExist: "existiert nicht",
     errNoAccess: "kein Zugriff",
     errOther: "Fehler {0}",
-    cbBtn: "+ Aus dem Codebuch", deepBtn: "Außerhalb des Menüs suchen", deepNode: "auch die Erweiterungsplatine", deepStop: "Stoppen", extraClear: "Zeilen außerhalb des Menüs löschen", extraCleared: "{0} Zeilen außerhalb des Menüs gelöscht (gewählte Zeilen bleiben).",
-    outsideNote: "Gerät scannen liest die Liste der Einstellungen und Messwerte, die das Gerät selbst führt. Das sind nicht alle Werte, die es gibt: die Remeha-App zeigt zum Beispiel auch die Verdampfer- und Kondensatortemperatur. Solche Werte kannst du hier hinzufügen. Suche sie im Codebuch, oder lass den ESP alle übrigen Werte aus dem Codebuch probieren (nur lesen, einige Minuten). Sie stehen in der Tabelle als nicht im Menü.",
-    deepP1: "Schritt 1 von 2, Messwerte und Zähler: {0} von {1} · {2} gefunden",
-    deepP2: "Schritt 2 von 2, Einstellungen: {0} von {1} · {2} gefunden",
-    deepDone: "Fertig: {0} Objekte außerhalb des Menüs gefunden. Du siehst sie mit Anzeigen: nur nicht im Menü.",
-    deepStopped: "Gestoppt: bisher {0} Objekte gefunden.", deepErr: "Abgebrochen: {0}.", deepNothing: "Nichts mehr zu suchen: alles aus dem Codebuch steht schon in der Liste.",
+    cbBtn: "+ Aus dem Codebuch", extraClear: "Zeilen außerhalb des Menüs löschen", extraCleared: "{0} Zeilen außerhalb des Menüs gelöscht (gewählte Zeilen bleiben).",
+    outsideNote: "Gerät scannen liest die Liste der Einstellungen und Messwerte, die das Gerät selbst führt. Das sind nicht alle Werte, die es gibt: die Remeha-App zeigt zum Beispiel auch die Verdampfer- und Kondensatortemperatur. Solche Werte kannst du hier hinzufügen. Suche sie im Codebuch und lies sie zuerst, um zu sehen, ob sie auf deinem Gerät einen sinnvollen Wert liefern. Sie stehen in der Tabelle als nicht im Menü.",
     sExtra: "nur nicht im Menü",
     cbTitle: "Objekt aus dem Codebuch hinzufügen", cbSearch: "Suche nach Code, Index oder Name", cbPh: "z. B. HM097, 0x434E oder Verdampfer",
     cbNode: "Platine", cbEl: "Element", cbAdd: "Hinzufügen", cbAdded: "hinzugefügt", cbInList: "in der Liste", cbClose: "Schließen",
@@ -600,7 +583,6 @@ function setRecords(recs, dev) {
   for (const k of Object.keys(sel)) if (!valid.has(k)) delete sel[k];
   buildGroupFilter();
   showDeviceStatus();
-  if (!deepRun) $("deep-node-box").hidden = !scanNodes().includes(4);
   render();
 }
 function showDeviceStatus() {
@@ -1217,62 +1199,6 @@ $("cb-dlg").addEventListener("click", (e) => {
   if (e.target.closest("[data-alias]")) { const ab = $("cb-alias"); cbAdd(ab.dataset.k, +ab.dataset.el); }
 });
 
-// ---- objects outside the menu: let the ESP search the codebook ----
-// Step 1 asks for 32 objects at a time in one bulk GetList (/remeha/batch?m=g):
-// that returns every live value the appliance has. Settings are often not
-// returned by a GetList, so step 2 reads the remaining settings one by one (m=r).
-const BATCH = 32;
-let deepRun = null;
-function deepCandidates(nodes) {
-  const inMenu = new Set(rows.filter((r) => !r.extra).map((r) => r.node + "-" + r.idx));
-  const have = new Set(rows.map((r) => r.key));
-  const seen = new Set(), out = [];
-  for (const [k, o] of Object.entries(DATA.objects)) {
-    if (!readable(o)) continue;
-    const { idx, sub: s0 } = keyOf(k), sub = o.a ? 1 : s0;
-    if (idx < 0x2000) continue;  // CANopen communication objects
-    for (const node of nodes) {
-      const key = node + "-" + hex4(idx) + "-" + sub;
-      if (seen.has(key) || have.has(key) || inMenu.has(node + "-" + idx)) continue;
-      seen.add(key);
-      out.push({ node, idx, sub, o, key });
-    }
-  }
-  return out;
-}
-// "No value" answers: nothing, a typed record with 0xFFFF, or the sentinels the
-// appliance uses for a sensor that is not fitted (all bytes 0xFF, or the lowest
-// signed number). Such an object is not counted as found.
-function notAvailable(o, b, flag) {
-  if (!b.length) return true;
-  if (flag === 2 && b.length >= 2 && b[0] === 0xFF && b[1] === 0xFF) return true;
-  const size = { U8: 1, I8: 1, Enum: 1, U16: 2, I16: 2, U32: 4, I32: 4 }[o.t] || 0;
-  if (!size || b.length < size) return false;
-  const v = b.slice(0, size);
-  if (v.every((c) => c === 0xFF)) return true;
-  if (o.t[0] === "I" && v[size - 1] === 0x80 && v.slice(0, size - 1).every((c) => c === 0)) return true;
-  return false;
-}
-async function batchRead(mode, list, onProgress) {
-  const l = list.map((x) => hex2(x.node) + hex4(x.idx) + hex2(x.sub)).join(",");
-  const q = await (await fetch("/remeha/batch?m=" + mode + "&l=" + l, { cache: "no-store" })).json();
-  const limit = Date.now() + (mode === "g" ? 15000 : 8000 + list.length * 5000);
-  while (Date.now() < limit) {
-    await sleep(mode === "g" ? 200 : 350);
-    if (deepRun && deepRun.stop) throw new Error("stop");
-    const j = await (await fetch("/remeha/batch?t=" + Date.now(), { cache: "no-store" })).json();
-    if (j.id !== q.id) continue;
-    if (j.state !== "done") { if (onProgress && typeof j.done === "number") onProgress(j.done); continue; }
-    if (j.err) throw new Error(j.err);
-    return j.r || [];
-  }
-  throw new Error("timeout");
-}
-function deepUi(on) {
-  $("btn-deep").disabled = on; $("btn-cb").disabled = on; $("btn-scan").disabled = on;
-  $("btn-deep-stop").hidden = !on; $("deep-bar").hidden = !on;
-  $("deep-node-box").hidden = on || !scanNodes().includes(4);
-}
 // Drop the "not in menu" rows that are not chosen (a chosen one stays, so the YAML
 // does not lose an entity). Returns how many went.
 function clearExtras() {
@@ -1282,56 +1208,7 @@ function clearExtras() {
   const s0 = sel; setRecords(lastRecs, device); sel = s0; render();
   return before - extras.length;
 }
-$("btn-extra-clear").addEventListener("click", () => deepMsg("extraCleared", clearExtras()));
-function deepMsg(key, ...a) { $("deep-status").innerHTML = esc(t(key, ...a)); }
-async function deepScan() {
-  if (!lastRecs.length) { deepMsg("cbScanFirst"); return; }
-  clearExtras();  // test the earlier finds again too
-  const nodes = $("deep-node").checked ? scanNodes() : [scanNodes()[0]];
-  const cand = deepCandidates(nodes);
-  if (!cand.length) { deepMsg("deepNothing"); return; }
-  deepRun = { stop: false };
-  deepUi(true);
-  const found = [], params = [];
-  const bar = $("deep-bar");
-  const keep = (x, st, hex, flag) => {
-    if (st !== 1 || notAvailable(x.o, hexBytes(hex || ""), flag)) return false;
-    found.push([x.node, x.idx, x.sub]);
-    probe[x.key] = decodeValue(x.o, hexBytes(hex));
-    return true;
-  };
-  try {
-    bar.max = cand.length;
-    for (let i = 0; i < cand.length; i += BATCH) {
-      const part = cand.slice(i, i + BATCH);
-      const r = await batchRead("g", part);
-      part.forEach((x, k) => { const [st, hex, flag] = r[k] || [0, ""]; if (!keep(x, st, hex, flag) && x.o.k === "P") params.push(x); });
-      bar.value = Math.min(cand.length, i + BATCH);
-      deepMsg("deepP1", Math.min(cand.length, i + BATCH), cand.length, found.length);
-    }
-    bar.max = params.length || 1; bar.value = 0;
-    for (let i = 0; i < params.length; i += BATCH) {
-      const part = params.slice(i, i + BATCH);
-      const show = (d) => { bar.value = i + d; deepMsg("deepP2", i + d, params.length, found.length); };
-      show(0);
-      const r = await batchRead("r", part, show);
-      part.forEach((x, k) => { const [st, hex, flag] = r[k] || [0, ""]; keep(x, st, hex, flag); });
-      show(part.length);
-    }
-    addExtras(found);
-    deepMsg("deepDone", found.length);
-  } catch (e) {
-    addExtras(found);
-    if (e.message === "stop") deepMsg("deepStopped", found.length);
-    else deepMsg("deepErr", e.message === "no_link" ? t("errNoLink") : e.message === "timeout" ? t("errTimeout") : e.message);
-  }
-  deepRun = null;
-  deepUi(false);
-  render();
-}
-$("btn-deep").addEventListener("click", deepScan);
-$("btn-deep-stop").addEventListener("click", () => { if (deepRun) deepRun.stop = true; });
-
+$("btn-extra-clear").addEventListener("click", () => { $("outside-status").textContent = t("extraCleared", clearExtras()); });
 // ---- start ----
 (function init() {
   applyLang();

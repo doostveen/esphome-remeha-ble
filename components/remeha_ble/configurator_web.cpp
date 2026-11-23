@@ -21,7 +21,7 @@ bool RemehaConfigurator::canHandle(AsyncWebServerRequest *request) const {
   char buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(buf);
   return url == "/remeha" || url == "/remeha/" || url == "/remeha/scan" || url == "/remeha/data.json" ||
-         url == "/remeha/current.json" || url == "/remeha/read" || url == "/remeha/batch";
+         url == "/remeha/current.json" || url == "/remeha/read";
 }
 
 void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
@@ -54,33 +54,6 @@ void RemehaConfigurator::handleRequest(AsyncWebServerRequest *request) {
                               ps != nullptr ? (uint8_t) strtoul(ps->value().c_str(), nullptr, 10) : 0);
     } else {
       j = hub_->probe_poll();
-    }
-    AsyncWebServerResponse *res = request->beginResponse(
-        200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());
-    res->addHeader("Cache-Control", "no-store");
-    request->send(res);
-    return;
-  }
-  if (url == "/remeha/batch") {
-    // ?m=g|r&l=NNIIIISS,NNIIIISS,... (hex: node, index, sub) starts a batch read;
-    // without parameters: the result so far
-    auto *pl = request->getParam("l");
-    std::string j;
-    if (pl != nullptr) {
-      auto *pm = request->getParam("m");
-      char mode = (pm != nullptr && !pm->value().empty()) ? pm->value()[0] : 'g';
-      std::vector<uint32_t> keys;
-      const std::string &l = pl->value();
-      size_t p = 0;
-      while (p < l.size() && keys.size() < 32) {
-        size_t q = l.find(',', p);
-        if (q == std::string::npos) q = l.size();
-        if (q - p == 8) keys.push_back((uint32_t) strtoul(l.substr(p, 8).c_str(), nullptr, 16));
-        p = q + 1;
-      }
-      j = hub_->batch_request(mode, keys);
-    } else {
-      j = hub_->batch_poll();
     }
     AsyncWebServerResponse *res = request->beginResponse(
         200, "application/json; charset=utf-8", reinterpret_cast<const uint8_t *>(j.data()), j.size());

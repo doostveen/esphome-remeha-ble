@@ -123,12 +123,6 @@ class RemehaBle : public PollingComponent,
   // probe_request() queues it (HTTP task), probe_poll() returns the result.
   std::string probe_request(uint8_t node, uint16_t index, uint8_t sub);
   std::string probe_poll();  // HTTP task: status + chunks >= from (frees older ones of that gen)
-  // Configurator "search outside the menu": read a list of objects at once.
-  // mode 'g' = one bulk GetList (fast; returns what the appliance has as a live
-  // value), mode 'r' = individual reads one after the other (for parameters that
-  // a GetList does not return). keys: node<<24 | index<<8 | sub. HTTP task.
-  std::string batch_request(char mode, const std::vector<uint32_t> &keys);
-  std::string batch_poll();
   // Enable/disable reading. false = release the BLE link and STOP reconnecting, so
   // a phone or service tool can connect; true = resume. Driven by a switch.
   void set_active(bool a);
@@ -221,28 +215,6 @@ class RemehaBle : public PollingComponent,
   uint32_t probe_expect_{0}, probe_ms_{0};
   std::string probe_json_{"{\"state\":\"idle\",\"id\":0}"};
   void probe_done_(bool ok, const uint8_t *d, size_t len, const char *err);
-  // batch read for the configurator (see batch_request); request + json under scan_mtx_
-  std::atomic<bool> batch_req_{false};
-  char batch_req_mode_{'g'};
-  std::vector<uint32_t> batch_req_keys_;
-  uint16_t batch_id_{0};
-  std::string batch_json_{"{\"state\":\"idle\",\"id\":0}"};
-  // main-loop side
-  char batch_mode_{0};             // 0 idle, 'g' or 'r' running
-  std::vector<uint32_t> batch_keys_;
-  std::vector<uint8_t> batch_st_;  // per key: 0 not available, 1 value, 2 refused, 3 no answer
-  std::vector<uint8_t> batch_flag_;  // GetList record flag (0x02 = typed value)
-  uint8_t batch_log_left_{2};      // log the raw answer of the first batches
-  std::vector<std::string> batch_hex_;
-  size_t batch_pos_{0};            // mode 'r': key in flight
-  bool batch_wait_{false};         // a batch request is on the air
-  uint32_t batch_ms_{0};
-  std::vector<std::vector<uint8_t>> batch_q_;  // the batch frame waiting to be sent
-  bool poll_wait_{false};          // the poll GetList is on the air (its answer is also op 0x09)
-  uint32_t poll_ms_{0};
-  void batch_next_();
-  void batch_finish_(const char *err);
-  void batch_store_(size_t k, uint8_t st, const uint8_t *d, size_t len);
   void start_scan_();
   void scan_reset_();
   void scan_issue_next_();

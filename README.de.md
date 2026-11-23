@@ -116,22 +116,16 @@ Kopie vieler Objekte. Für die meisten Anlagen ist die des Reglers die richtige.
 
 ### Objekte außerhalb des Menüs
 
-Der Scan zeigt, was das Gerät in seiner eigenen Menübeschreibung angibt: das Menü
-seines Displays. Die Remeha-App zeigt mehr, zum Beispiel die Verdampfer- und
-Kondensatortemperatur des Außengeräts. Fast alle diese Objekte stehen im Codebuch,
-und du bekommst sie auf zwei Wegen in den Konfigurator:
-
-- **+ Aus dem Codebuch** öffnet eine Suche nach Code, Index oder Name. **Lesen** zeigt
-  sofort, ob das Objekt auf deinem Gerät existiert; **Hinzufügen** setzt es als Zeile
-  mit *nicht im Menü* in die Tabelle. Ein Code aus der Remeha-App, der nicht im
-  Codebuch steht, etwa `AC089` oder `CP083`, ist meist ein Element einer Liste
-  (`AC088` Element 2, `CP080` Aktivität 4); die Suche sagt das.
-- **Außerhalb des Menüs suchen** lässt den ESP jedes Codebuch-Objekt probieren, das
-  nicht im Menü steht (nur lesen). Schritt 1 fragt die Messwerte und Zähler in Gruppen
-  von 32 ab und dauert etwa eine Minute; Schritt 2 liest die übrigen
-  Einstellungen einzeln und dauert einige Minuten. Solange das läuft, pausiert das
-  normale Auslesen. Alles, was einen Wert liefert, kommt als *nicht im Menü* dazu;
-  wähle *Anzeigen: nur nicht im Menü*, um sie zu sehen.
+Der Scan zeigt die Liste der Einstellungen und Messwerte, die das Gerät selbst führt.
+Das sind nicht alle Werte, die es gibt: die Remeha-App zeigt zum Beispiel auch die
+Verdampfer- und Kondensatortemperatur des Außengeräts. Fast alle diese Objekte stehen
+im Codebuch. **+ Aus dem Codebuch** öffnet eine Suche nach Code, Index oder Name.
+**Lesen** zeigt sofort, ob das Objekt auf deinem Gerät einen sinnvollen Wert liefert;
+**Hinzufügen** setzt es als Zeile mit *nicht im Menü* in die Tabelle (*Anzeigen: nur
+nicht im Menü* listet sie). Ein Code aus der Remeha-App, der nicht im Codebuch steht,
+etwa `AC089` oder `CP083`, ist meist ein Element einer Liste (`AC088` Element 2,
+`CP080` Aktivität 4); die Suche sagt das. *Zeilen außerhalb des Menüs löschen*
+entfernt die Zeilen, die du hinzugefügt, aber nicht gewählt hast.
 
 Ein Objekt außerhalb des Menüs hat keine Grenzen vom Gerät: eine einstellbare Entität
 dafür kennt kein Minimum oder Maximum vom Gerät, lege sie also nur an, wenn du weißt,
