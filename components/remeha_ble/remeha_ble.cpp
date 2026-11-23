@@ -685,9 +685,71 @@ void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
   }
 }
 
+// The PRO app authorizes TWICE: first protocol 02.01 (level 4, broadcast), then,
+// before it reads or writes parameters, protocol 02.00 at level 5 (same TEA, see
+// docs/readme.md). Without the second one a Confida 40 can refuse the menu
+// description 0x502B with "general error" (seen after a restart of the indoor unit;
+// an earlier PRO-app session had apparently left that authorization in place).
+// Frames (body, without FF seq and CRC):
+//   ESP: 01 02 00 00 02 00 00                         challenge request
+//   dev: 01 02 00 00 02 01 00 <serial:4> <chal:4>
+//   ESP: 01 02 00 00 02 02 00 ff <level> <tea:8>
+//   dev: 01 02 00 00 02 03 00 ff <level> ff 01        accepted
+static const uint8_t AUTH0_LEVEL = 5;
+static const uint32_t AUTH0_TIMEOUT_MS = 3000;
+
+void RemehaBle::send_canip_body_(const uint8_t *body, size_t len) {
+  uint8_t f[24];
+  if (len + 3 > sizeof(f)) return;
+  f[0] = 0xff;
+  memcpy(f + 1, body, len);
+  uint16_t c = crc_modbus_(body, len);
+  f[len + 1] = (uint8_t) (c >> 8);
+  f[len + 2] = (uint8_t) (c & 0xFF);
+  write_raw_(h_canip_w_, f, len + 3);
+}
+
+void RemehaBle::enter_run_() {
+  st_ = ST_RUN;
+  last_rx_ = millis();   // arm the RUN watchdog from a fresh timestamp
+  // Publish "verbonden" once (first connect) so the reason entity isn't empty and
+  // shows a clean baseline; after that it holds the LAST reconnect reason.
+  if (reason_ts_ != nullptr && !connected_once_) reason_ts_->publish_state("verbonden");
+  if (reconnect_sensor_ != nullptr && !connected_once_) reconnect_sensor_->publish_state(0);
+  connected_once_ = true;
+  ESP_LOGI(TAG, ">> handshake complete - starting GetList polling");
+  // First poll right away (after a short pause for the last handshake write),
+  // instead of waiting up to a full update_interval for the next tick.
+  this->set_timeout("first_poll", 300, [this]() {
+    if (st_ == ST_RUN && !tx_busy_ && tx_queue_.empty()) start_poll_cycle_();
+  });
+}
+
 void RemehaBle::canip_handshake_(const std::vector<uint8_t> &m) {
   if (m.size() < 7) return;
   uint8_t cls = m[4], step = m[5];
+  if (st_ == ST_AUTH0_WAIT_CHAL || st_ == ST_AUTH0_WAIT_ACK) {
+    // second authorization (protocol 02.00); anything unexpected: continue without it
+    if (m[2] == 0x00 && cls == 0x02 && step == 0x01 && m.size() >= 15 && st_ == ST_AUTH0_WAIT_CHAL) {
+      uint32_t serial = be32(&m[7]), chal = be32(&m[11]), w1, w2;
+      tea_(AUTH0_LEVEL, serial, chal, w1, w2);
+      const uint8_t body[17] = {0x01, 0x02, 0x00, 0x00, 0x02, 0x02, 0x00, 0xff, AUTH0_LEVEL,
+                                (uint8_t) (w1 >> 24), (uint8_t) (w1 >> 16), (uint8_t) (w1 >> 8), (uint8_t) w1,
+                                (uint8_t) (w2 >> 24), (uint8_t) (w2 >> 16), (uint8_t) (w2 >> 8), (uint8_t) w2};
+      ESP_LOGI(TAG, ">> canip 02.00: challenge -> authorize level %u", AUTH0_LEVEL);
+      st_ = ST_AUTH0_WAIT_ACK;
+      auth0_ms_ = millis();
+      send_canip_body_(body, sizeof(body));
+      return;
+    }
+    if (m[2] == 0x00 && cls == 0x02 && step == 0x03 && m.size() >= 11 && m[10] == 0x01) {
+      ESP_LOGI(TAG, ">> canip 02.00: authorized (level %u)", m[8]);
+    } else {
+      ESP_LOGW(TAG, ">> canip 02.00: onverwacht antwoord %s - verder zonder", tohex(m.data(), m.size()).c_str());
+    }
+    enter_run_();
+    return;
+  }
   if (cls == 0x02 && step == 0x01 && m.size() >= 15) {
     uint32_t serial = be32(&m[7]), chal = be32(&m[11]), w1, w2;
     tea_(auth_level_, serial, chal, w1, w2);
@@ -706,19 +768,12 @@ void RemehaBle::canip_handshake_(const std::vector<uint8_t> &m) {
     st_ = ST_CANIP_WAIT_RX6;
     write_raw_(h_canip_w_, f, sizeof(f));
   } else if (cls == 0x00 && step == 0x02) {
-    st_ = ST_RUN;
-    last_rx_ = millis();   // arm the RUN watchdog from a fresh timestamp
-    // Publish "verbonden" once (first connect) so the reason entity isn't empty and
-    // shows a clean baseline; after that it holds the LAST reconnect reason.
-    if (reason_ts_ != nullptr && !connected_once_) reason_ts_->publish_state("verbonden");
-    if (reconnect_sensor_ != nullptr && !connected_once_) reconnect_sensor_->publish_state(0);
-    connected_once_ = true;
-    ESP_LOGI(TAG, ">> handshake complete - starting GetList polling");
-    // First poll right away (after a short pause for the last handshake write),
-    // instead of waiting up to a full update_interval for the next tick.
-    this->set_timeout("first_poll", 300, [this]() {
-      if (st_ == ST_RUN && !tx_busy_ && tx_queue_.empty()) start_poll_cycle_();
-    });
+    // second authorization, as the PRO app does (see above)
+    static const uint8_t body[7] = {0x01, 0x02, 0x00, 0x00, 0x02, 0x00, 0x00};
+    ESP_LOGI(TAG, ">> canip 02.00: session start");
+    st_ = ST_AUTH0_WAIT_CHAL;
+    auth0_ms_ = millis();
+    send_canip_body_(body, sizeof(body));
   } else {
     ESP_LOGW(TAG, "unexpected canip msg cls=0x%02X step=0x%02X", cls, step);
   }
@@ -1513,6 +1568,10 @@ void RemehaBle::loop() {
     }
   }
   if (probe_inflight_ && millis() - probe_ms_ > 10000) probe_done_(false, nullptr, 0, "timeout");
+  if ((st_ == ST_AUTH0_WAIT_CHAL || st_ == ST_AUTH0_WAIT_ACK) && millis() - auth0_ms_ > AUTH0_TIMEOUT_MS) {
+    ESP_LOGW(TAG, ">> canip 02.00: geen antwoord - verder zonder");
+    enter_run_();
+  }
   if (scan_req_.exchange(false)) {
     if (scan_state_ == 2) {
       // already reading: start over (the page lost its data, e.g. after a reload)
@@ -1622,7 +1681,7 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
     return;
   }
   uint32_t abort = (!ok && d != nullptr && len >= 4) ? le32(d) : 0;
-  uint8_t kind = scan_pos_ < scan_steps_.size() ? scan_steps_[scan_pos_].kind : SCAN_MENU;
+  uint8_t kind = scan_pos_ < scan_steps_.size() ? scan_steps_[scan_pos_].kind : (uint8_t) SCAN_MENU;
   // "general error": the CAN bus or the board was busy; try the same read again
   if (!ok && abort == ABORT_GENERAL && scan_pos_ < scan_steps_.size() &&
       scan_steps_[scan_pos_].tries < (kind == SCAN_FIND ? 1 : 2)) {

@@ -72,7 +72,8 @@ struct RemehaItem {
 
 // connection state machine
 enum St { ST_INIT = 0, ST_GATE_WAIT_CHAL, ST_GATE_WAIT_ACK,
-          ST_CANIP_WAIT_CHAL, ST_CANIP_WAIT_ACK, ST_CANIP_WAIT_RX6, ST_RUN };
+          ST_CANIP_WAIT_CHAL, ST_CANIP_WAIT_ACK, ST_CANIP_WAIT_RX6, ST_AUTH0_WAIT_CHAL, ST_AUTH0_WAIT_ACK,
+          ST_RUN };
 
 class RemehaBle : public PollingComponent,
                       public ble_client::BLEClientNode,
@@ -288,6 +289,9 @@ class RemehaBle : public PollingComponent,
   void gate_trigger_();
   void canip_start_();
   void canip_handshake_(const std::vector<uint8_t> &m);
+  void send_canip_body_(const uint8_t *body, size_t len);
+  void enter_run_();
+  uint32_t auth0_ms_{0};
   void build_request_();
   std::vector<uint8_t> build_read_frame_(uint8_t node, uint16_t index, uint8_t sub);  // individual read (op 0x00)
   void queue_individual_reads_();         // (re)fill indiv_q_ with one read frame per single-read item

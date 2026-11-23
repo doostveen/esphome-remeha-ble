@@ -122,6 +122,25 @@ herhaal 32x:
 antwoord = (v0, v1)   # elk 32-bit, little-endian in het antwoordframe
 ```
 
+### 3.4 Tweede autorisatie (protocol 02.00, niveau 5)
+
+De Remeha PRO-app autoriseert na de CANIP-handshake nog een keer, nu met protocolversie
+02.00 in plaats van 02.01 en met niveau 5. Hetzelfde rekenrecept, alleen andere bytes
+(berichten zonder seq-byte en CRC):
+
+```
+ESP -> 01 02 00 00 02 00 00                          challenge-verzoek
+dev -> 01 02 00 00 02 01 00 <serial:4> <chal:4>
+ESP -> 01 02 00 00 02 02 00 ff 05 <v0:4> <v1:4>      antwoord, niveau 5
+dev -> 01 02 00 00 02 03 00 ff 05 ff 01              geaccepteerd
+```
+
+Zonder deze stap weigerde een Confida 40 de menubeschrijving (0x502B) met
+"algemene fout" (0x08000000), terwijl gewone reads bleven werken. Vermoedelijk liet een
+eerdere sessie van de PRO-app die autorisatie in de regelaar achter tot een herstart van
+de binnenunit. De component doet de stap sinds deze versie zelf; krijgt hij geen of een
+onverwacht antwoord, dan gaat hij zonder verder.
+
 ---
 
 ## 4. Frameformaat
