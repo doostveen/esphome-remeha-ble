@@ -1,12 +1,16 @@
 # Changelog
 
-## Unreleased
+## v2.2.0 (2026-11-23)
 
 - **Fix: menu description on a Confida 40 after a restart.** Before reading the menu
   description (0x502B) of a board, the PRO app reads 0x502C and writes that value
   (`02`) to 0x502D. The component now does the same, in the scan and when it reads the
   limits after connecting. Without it every block of every board returned "general
   error" once the indoor unit had restarted, so the scan found nothing.
+- **Scan: a menu block without an answer is read once more** (for example after a lost
+  BLE fragment) instead of being skipped. The wait for an answer is 8 s instead of 20 s.
+- **Fix: HM160 (current thermal output) is signed** in the codebook. During a defrost it
+  is negative and showed as about 6550 kW.
 - **Second authorization, as the Remeha PRO app does.** After the CAN-IP handshake
   the component now also authorizes protocol 02.00 at level 5, as seen in the app's
   traffic. No answer or an unexpected one: the component continues without it.

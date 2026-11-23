@@ -1543,7 +1543,7 @@ static const uint8_t SCAN_NODE_MAX = 16;
 static const uint8_t SCAN_MENU_SUBS = 15;
 static const size_t SCAN_MAX_CHUNKS = 3;
 static const uint32_t SCAN_PAUSE_TIMEOUT_MS = 60000;
-static const uint32_t SCAN_READ_TIMEOUT_MS = 20000;
+static const uint32_t SCAN_READ_TIMEOUT_MS = 8000;    // a full block takes ~1.5 s
 static const uint32_t SCAN_PROBE_TIMEOUT_MS = 2500;   // node search: an absent node may not answer
 static const uint32_t SCAN_RETRY_DELAY_MS = 500;
 static const uint32_t ABORT_GENERAL = 0x08000000UL;
@@ -1618,7 +1618,7 @@ void RemehaBle::loop() {
   if (scan_pending_ && st_ == ST_RUN && menu_left_ == 0 && id_left_ == 0 && !scan_inflight_) start_scan_();
   if (scan_state_ == 2 && scan_inflight_ &&
       millis() - scan_issue_ms_ > (((scan_expect_ >> 8) & 0xFFFF) == 0x3047 ? SCAN_PROBE_TIMEOUT_MS : SCAN_READ_TIMEOUT_MS)) {
-    ESP_LOGW(TAG, "configurator: geen antwoord op 0x%04X:%u (node %u), overgeslagen",
+    ESP_LOGW(TAG, "configurator: geen antwoord op 0x%04X:%u (node %u)",
              (unsigned) ((scan_expect_ >> 8) & 0xFFFF), (unsigned) (scan_expect_ & 0xFF), (unsigned) (scan_expect_ >> 24));
     handle_scan_response_(scan_expect_ >> 24, (scan_expect_ >> 8) & 0xFFFF, scan_expect_ & 0xFF, nullptr, 0, false);
   }
@@ -1721,9 +1721,15 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
   }
   uint32_t abort = (!ok && d != nullptr && len >= 4) ? le32(d) : 0;
   uint8_t kind = scan_pos_ < scan_steps_.size() ? scan_steps_[scan_pos_].kind : (uint8_t) SCAN_MENU;
-  // "general error": the CAN bus or the board was busy; try the same read again
-  if (!ok && abort == ABORT_GENERAL && scan_pos_ < scan_steps_.size() &&
-      scan_steps_[scan_pos_].tries < (kind == SCAN_FIND ? 1 : 2)) {
+  // "general error": the CAN bus or the board was busy; try the same read again.
+  // No answer at all (a lost fragment, the read timed out): once more, except in
+  // the board search, where no answer means no board.
+  bool no_answer = !ok && d == nullptr;
+  if (!ok && scan_pos_ < scan_steps_.size() &&
+      ((abort == ABORT_GENERAL && scan_steps_[scan_pos_].tries < (kind == SCAN_FIND ? 1 : 2)) ||
+       (no_answer && kind != SCAN_FIND && scan_steps_[scan_pos_].tries < 1))) {
+    if (no_answer)
+      ESP_LOGI(TAG, "configurator: 0x%04X:%u (node %u) opnieuw lezen", (unsigned) index, (unsigned) sub, (unsigned) node);
     scan_steps_[scan_pos_].tries++;
     scan_retry_at_ = millis() + SCAN_RETRY_DELAY_MS;
     if (scan_retry_at_ == 0) scan_retry_at_ = 1;
