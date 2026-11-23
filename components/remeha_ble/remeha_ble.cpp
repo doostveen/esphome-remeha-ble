@@ -69,7 +69,7 @@ namespace remeha_ble {
 static const char *const TAG = "remeha_ble";
 static const size_t FRAG_DATA = 19;
 static const size_t SEEN_MAX = 48;      // named BLE devices logged once (bounded)
-static const size_t RX_MAX = 2048;      // longest reassembled message we accept
+static const size_t RX_MAX = 4096;      // longest reassembled message we accept (a menu block can be 2.3 kB)
 
 // RUN-phase watchdog thresholds (ms). The poll interval is 30 s, so RUN_RX_TIMEOUT
 // is ~6 missed polls of silence before we give up on the link; TX_STUCK is how long
@@ -642,7 +642,11 @@ void RemehaBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
           rx_next_ = seq + 1;
         }
         if (!rx_bad_) rx_msg_.insert(rx_msg_.end(), v + 1, v + n);
-        if (rx_msg_.size() > RX_MAX) { rx_msg_.clear(); rx_bad_ = true; }
+        if (rx_msg_.size() > RX_MAX) {
+          if (!rx_bad_) ESP_LOGW(TAG, "antwoord langer dan %u bytes: weggegooid", (unsigned) RX_MAX);
+          rx_msg_.clear();
+          rx_bad_ = true;
+        }
         if (seq != 0xFF) break;
         if (rx_bad_) {
           rx_dropped_++;

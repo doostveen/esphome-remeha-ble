@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.2.1 (2026-11-23)
+
+- **Fix:** a received message was capped at 2 kB since v2.2.0, but a menu block can be
+  larger (block 2 of node 4 on a Confida 40 is about 2.3 kB). That block was dropped on
+  every try. The cap is now 4 kB, with its own warning in the log.
+
 ## v2.2.0 (2026-11-23)
 
 - **Fix: menu description on a Confida 40 after a restart.** Before reading the menu
@@ -35,7 +41,7 @@
   the first record that was skipped, so a different layout can be recognised.
 - **Fix:** an answer with a lost Bluetooth fragment was glued to the next answer,
   which then failed its CRC check as well. A gap in the fragment count now drops just
-  that answer (logged as a warning), and a reassembled message is capped at 2 kB.
+  that answer (logged as a warning), and a reassembled message is capped (4 kB since v2.2.1).
 - **Fix:** every Bluetooth device in range was remembered to log it once. Phones change
   their address every few minutes, so over days this ate the heap of the ESP (slow web
   page, slow OTA). Only named devices are logged now, at most 48.
