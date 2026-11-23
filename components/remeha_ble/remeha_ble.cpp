@@ -1441,17 +1441,19 @@ void RemehaBle::probe_done_(bool ok, const uint8_t *d, size_t len, const char *e
 }
 
 // ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
-// 1. Find the boards: read 0x3047 (name) on node 1..SCAN_NODE_MAX. A node that
-//    answers, with a value or with a "does not exist"-type abort (0x06......),
-//    is there; "general error" (0x08000000) or no answer means no board.
-// 2. 0x2000:09 (article number) on the main board (node 1 if present).
-// 3. 0x502B:1..15 on every board found (1-5 settings, 6-10 measurements, 11-15
-//    counters, per access level 1-5). "General error" is retried twice.
+// 1. 0x2000:09 (article number) and 0x3047 (name) on node 1, the controller.
+// 2. 0x502B:1..15 on node 1 and node 4 (1-5 settings, 6-10 measurements, 11-15
+//    counters, per access level 1-5), exactly as before the board search.
+// 3. Find other boards: 0x3047 on node 2..SCAN_NODE_MAX. A node that answers,
+//    with a value or with a 0x06...... abort, is there; "general error" or no
+//    answer means no board. Then 0x502B:1..15 of each extra board found.
+//    The search comes last on purpose: on a Confida 40 the menu reads failed
+//    with "general error" after the search had addressed other nodes.
+// "General error" is retried twice; a board whose blocks keep failing is skipped.
 // One read at a time; every menu block becomes a JSON chunk for the page. At most
 // SCAN_MAX_CHUNKS chunks wait for the page; beyond that the scan pauses.
 static const uint8_t SCAN_NODE_MAX = 16;
 static const uint8_t SCAN_MENU_SUBS = 15;
-static const uint8_t SCAN_FALLBACK_NODES[] = {1, 4};
 static const size_t SCAN_MAX_CHUNKS = 3;
 static const uint32_t SCAN_PAUSE_TIMEOUT_MS = 60000;
 static const uint32_t SCAN_READ_TIMEOUT_MS = 20000;
@@ -1542,11 +1544,15 @@ void RemehaBle::scan_reset_() {
   scan_name_.clear();
   scan_nodes_.clear();
   scan_steps_.clear();
-  for (uint8_t n = 1; n <= SCAN_NODE_MAX; n++) scan_steps_.push_back({n, 0x3047, 0, 0});
+  scan_steps_.push_back({1, 0x2000, 9, 0, SCAN_ARTICLE});
+  scan_steps_.push_back({1, 0x3047, 0, 0, SCAN_NAME});
+  for (uint8_t n : {1, 4})
+    for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n, 0x502B, b, 0, SCAN_MENU});
+  for (uint8_t n = 2; n <= SCAN_NODE_MAX; n++) scan_steps_.push_back({n, 0x3047, 0, 0, SCAN_FIND});
   scan_pos_ = 0;
   scan_retry_at_ = 0;
-  // estimate until the boards are known: search + article + two boards
-  scan_total_ = SCAN_NODE_MAX + 1 + 2 * SCAN_MENU_SUBS;
+  scan_fails_ = 0;
+  scan_total_ = scan_steps_.size();  // grows when extra boards are found
   scan_left_ = scan_total_;
   scan_seq_ = 0;
   scan_state_ = 2;
@@ -1616,26 +1622,42 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
     return;
   }
   uint32_t abort = (!ok && d != nullptr && len >= 4) ? le32(d) : 0;
+  uint8_t kind = scan_pos_ < scan_steps_.size() ? scan_steps_[scan_pos_].kind : SCAN_MENU;
   // "general error": the CAN bus or the board was busy; try the same read again
   if (!ok && abort == ABORT_GENERAL && scan_pos_ < scan_steps_.size() &&
-      scan_steps_[scan_pos_].tries < (index == 0x3047 ? 1 : 2)) {
+      scan_steps_[scan_pos_].tries < (kind == SCAN_FIND ? 1 : 2)) {
     scan_steps_[scan_pos_].tries++;
     scan_retry_at_ = millis() + SCAN_RETRY_DELAY_MS;
     if (scan_retry_at_ == 0) scan_retry_at_ = 1;
     return;  // the loop issues it again after the delay
   }
   scan_pos_++;
-  if (index == 0x3047) {
-    // board search: present when it answers with a value or with a 0x06.. abort
+  if (kind == SCAN_MENU) {
+    // a board whose menu blocks keep failing (general error / no answer): skip the rest of it
+    bool failed = !ok && (abort == ABORT_GENERAL || abort == 0);
+    scan_fails_ = failed ? scan_fails_ + 1 : 0;
+    if (scan_fails_ >= 3) {
+      ESP_LOGW(TAG, "configurator: menu van node %u geeft steeds een fout, rest overgeslagen", node);
+      while (scan_pos_ < scan_steps_.size() && scan_steps_[scan_pos_].kind == SCAN_MENU &&
+             scan_steps_[scan_pos_].node == node) {
+        scan_pos_++;
+        if (scan_left_ > 1) scan_left_--;
+      }
+      scan_fails_ = 0;
+    }
+  }
+  if (kind == SCAN_NAME || kind == SCAN_FIND) {
+    // present when it answers with a value or with a 0x06.. abort
     if (ok || (abort >> 24) == 0x06) {
       std::string nm;
       for (size_t i = 0; ok && i < len && d[i] && nm.size() < 24; i++)
         if (isalnum(d[i]) || d[i] == '-' || d[i] == ' ' || d[i] == '_') nm.push_back((char) d[i]);
+      if (kind == SCAN_NAME) scan_name_ = nm;
       scan_nodes_.emplace_back(node, nm);
       ESP_LOGI(TAG, "configurator: bord op node %u%s%s", node, nm.empty() ? "" : ": ", nm.c_str());
     }
-    if (node == SCAN_NODE_MAX) {
-      // search done: plan article number + menu blocks of every board found
+    if (kind == SCAN_FIND && node == SCAN_NODE_MAX) {
+      // search done: add the menu blocks of the extra boards
       std::string list;
       for (auto &n : scan_nodes_) {
         char b[40];
@@ -1644,20 +1666,14 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
         list += b;
       }
       ESP_LOGI(TAG, "configurator: printen gevonden: %s", list.empty() ? "geen" : list.c_str());
-      std::vector<uint8_t> nodes;
-      for (auto &n : scan_nodes_) nodes.push_back(n.first);
-      if (nodes.empty()) {
-        ESP_LOGW(TAG, "configurator: geen borden gevonden, probeer node 1 en 4");
-        nodes.assign(SCAN_FALLBACK_NODES, SCAN_FALLBACK_NODES + sizeof(SCAN_FALLBACK_NODES));
+      size_t added = 0;
+      for (auto &n : scan_nodes_) {
+        if (n.first == 1 || n.first == 4) continue;  // already read
+        for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n.first, 0x502B, b, 0, SCAN_MENU});
+        added += SCAN_MENU_SUBS;
       }
-      uint8_t main = nodes[0];
-      for (auto &n : scan_nodes_) if (n.first == 1) main = 1;
-      for (auto &n : scan_nodes_) if (n.first == main) scan_name_ = n.second;
-      scan_steps_.push_back({main, 0x2000, 9, 0});
-      for (uint8_t n : nodes)
-        for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n, 0x502B, b, 0});
-      scan_total_ = scan_steps_.size();
-      scan_left_ = scan_total_ - scan_pos_ + 1;  // +1: decremented below for this step
+      scan_total_ += added;
+      scan_left_ += added;
     }
   }
   if (ok && index == 0x2000 && len >= 4) scan_article_ = le32(d);

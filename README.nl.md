@@ -108,8 +108,8 @@ Dezelfde code kan op twee regels staan met een andere **Print**: de *regelaar*
 (node 1) en de *uitbreidingsprint* (node 4) hebben elk een eigen kopie van veel
 objecten. Voor de meeste installaties wil je die van de regelaar.
 
-De scan zoekt eerst welke printen er in het toestel zitten: hij vraagt node 1 tot en met
-16 om hun naam en leest daarna de menubeschrijving van elke print die antwoordt. De
+Na de regelaar en de uitbreidingsprint zoekt de scan naar andere printen: hij vraagt node
+2 tot en met 16 om hun naam en leest de menubeschrijving van elke print die antwoordt. De
 statusregel noemt de gevonden printen; een andere print dan de regelaar en de
 uitbreidingsprint staat er als *node N* met zijn naam. Dat zoeken kost een paar seconden
 extra.

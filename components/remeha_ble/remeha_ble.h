@@ -200,7 +200,9 @@ class RemehaBle : public PollingComponent,
   uint32_t scan_issue_ms_{0};
   uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done, 4 error
   uint16_t scan_left_{0}, scan_total_{0}, scan_seq_{0};
-  struct ScanStep { uint8_t node; uint16_t index; uint8_t sub; uint8_t tries; };
+  enum : uint8_t { SCAN_ARTICLE, SCAN_NAME, SCAN_MENU, SCAN_FIND };
+  struct ScanStep { uint8_t node; uint16_t index; uint8_t sub; uint8_t tries; uint8_t kind; };
+  uint8_t scan_fails_{0};             // menu blocks in a row that failed (skip the board at 3)
   std::vector<ScanStep> scan_steps_;  // reads of this scan, in order (grows after the board search)
   size_t scan_pos_{0};                // next step to issue
   uint32_t scan_retry_at_{0};         // millis() of the next retry, 0 = none

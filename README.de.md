@@ -114,8 +114,8 @@ Derselbe Code kann in zwei Zeilen mit unterschiedlicher **Platine** stehen: der
 *Regler* (Knoten 1) und die *Erweiterungsplatine* (Knoten 4) haben jeweils eine eigene
 Kopie vieler Objekte. Für die meisten Anlagen ist die des Reglers die richtige.
 
-Der Scan sucht zuerst, welche Platinen im Gerät stecken: er fragt Knoten 1 bis 16 nach
-ihrem Namen und liest danach die Menübeschreibung jeder Platine, die antwortet. Die
+Nach Regler und Erweiterungsplatine sucht der Scan nach weiteren Platinen: er fragt
+Knoten 2 bis 16 nach ihrem Namen und liest die Menübeschreibung jeder Platine, die antwortet. Die
 Statuszeile nennt die gefundenen Platinen; eine andere Platine als Regler und
 Erweiterungsplatine erscheint als *Knoten N* mit ihrem Namen. Die Suche dauert ein paar
 Sekunden länger.

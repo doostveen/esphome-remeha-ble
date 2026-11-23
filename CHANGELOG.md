@@ -6,12 +6,12 @@
   codebook by code, index or name, reads an object once and adds it to the table.
   Codes from the Remeha app for array elements (such as `AC089`, `CP083`) are
   recognised. *Clear not-in-menu rows* removes added rows that are not chosen.
-- **The scan looks for the boards first.** It asks node 1 to 16 for their name and reads
-  the menu description of every board that answers, instead of only node 1 and 4. The
-  status line lists the boards found. Menu blocks are read 1 to 15 (16 to 20 do not
-  exist), and a block that returns "general error" (0x08000000) is retried twice.
-  Refusals that the scan expects (absent boards, level-5 blocks) are logged quietly;
-  the log lists the boards found.
+- **The scan also looks for other boards.** After reading node 1 and 4 as before, it
+  asks node 2 to 16 for their name and reads the menu description of every extra board
+  that answers. The status line lists the boards found. Menu blocks are read 1 to 15
+  (16 to 20 do not exist); a block that returns "general error" (0x08000000) is retried
+  twice, and a board whose blocks keep failing is skipped. Refusals that the scan
+  expects (absent boards, level-5 blocks) are logged quietly.
 - **Fix:** a U8 measurement of 0xFF (such as a water pressure of 25.5 bar on an
   appliance without that sensor) is now "no value" instead of a number.
 - **Fix:** the scan read past the end of the menu description (0x502B) and showed the
