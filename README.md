@@ -106,6 +106,11 @@ The same code can appear on two rows with a different **Board**: the *controller
 (node 1) and the *extension* board (node 4) each have their own copy of many objects.
 For most installations the controller is the one you want.
 
+The scan first looks for the boards in the appliance: it asks node 1 to 16 for their
+name and then reads the menu description of every board that answers. The status line
+lists the boards found; a board other than the controller and the extension board is
+shown as *node N* with its name. The search takes a few seconds more than before.
+
 ### Objects outside the menu
 
 The scan shows the list of settings and measurements the appliance keeps itself. That

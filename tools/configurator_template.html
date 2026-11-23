@@ -288,7 +288,7 @@ const I18N = {
     copy: "Kopieer YAML", download: "Download .yaml",
     yamlNote: "Zet de YAML in ESPHome in plaats van de huidige en installeer opnieuw. Heb je je keuze overgenomen, dan houden bestaande entiteiten hun naam en blijven ze in Home Assistant dezelfde entiteit.",
     kindP: "instelling", kindS: "meetwaarde", kindC: "teller", read: "lezen", write: "instelbaar",
-    choices: "{0} keuzes", to: "{0} tot {1}", counts: "{0} gekozen · {1} instelbaar", nothing: "Niets gevonden. Pas het filter aan of lees eerst een dump in.", article: "artikelnummer {0}", appliance: "toestel", internal: "interne naam {0}",
+    choices: "{0} keuzes", to: "{0} tot {1}", counts: "{0} gekozen · {1} instelbaar", nothing: "Niets gevonden. Pas het filter aan of lees eerst een dump in.", article: "artikelnummer {0}", appliance: "toestel", internal: "interne naam {0}", boards: "Borden gevonden (node en naam): {0}",
     objects: "{0} objecten om uit te kiezen", skipped: "({0} niet bruikbaar overgeslagen)",
     copied: "Gekopieerd", selected: "Geselecteerd: druk Ctrl+C (of Cmd+C)",
     scanning: "Scannen...", progress: "{0} van {1}", waitLink: "wacht op de verbinding met het toestel",
@@ -351,7 +351,7 @@ const I18N = {
     copy: "Copy YAML", download: "Download .yaml",
     yamlNote: "Put the YAML in ESPHome instead of the current one and install again. If you took over your choice, existing entities keep their names and stay the same entities in Home Assistant.",
     kindP: "setting", kindS: "measurement", kindC: "counter", read: "read", write: "adjustable",
-    choices: "{0} choices", to: "{0} to {1}", counts: "{0} selected · {1} adjustable", nothing: "Nothing found. Change the filter or read a dump first.", article: "article number {0}", appliance: "appliance", internal: "internal name {0}",
+    choices: "{0} choices", to: "{0} to {1}", counts: "{0} selected · {1} adjustable", nothing: "Nothing found. Change the filter or read a dump first.", article: "article number {0}", appliance: "appliance", internal: "internal name {0}", boards: "Boards found (node and name): {0}",
     objects: "{0} objects to choose from", skipped: "({0} unusable ones skipped)",
     copied: "Copied", selected: "Selected: press Ctrl+C (or Cmd+C)",
     scanning: "Scanning...", progress: "{0} of {1}", waitLink: "waiting for the connection to the appliance",
@@ -414,7 +414,7 @@ const I18N = {
     copy: "YAML kopieren", download: ".yaml herunterladen",
     yamlNote: "Setze die YAML in ESPHome statt der aktuellen ein und installiere erneut. Hast du deine Auswahl übernommen, behalten bestehende Entitäten ihren Namen und bleiben in Home Assistant dieselben Entitäten.",
     kindP: "Einstellung", kindS: "Messwert", kindC: "Zähler", read: "lesen", write: "einstellbar",
-    choices: "{0} Optionen", to: "{0} bis {1}", counts: "{0} ausgewählt · {1} einstellbar", nothing: "Nichts gefunden. Ändere den Filter oder lies zuerst einen Dump ein.", article: "Artikelnummer {0}", appliance: "Gerät", internal: "interner Name {0}",
+    choices: "{0} Optionen", to: "{0} bis {1}", counts: "{0} ausgewählt · {1} einstellbar", nothing: "Nichts gefunden. Ändere den Filter oder lies zuerst einen Dump ein.", article: "Artikelnummer {0}", appliance: "Gerät", internal: "interner Name {0}", boards: "Gefundene Platinen (Knoten und Name): {0}",
     objects: "{0} Objekte zur Auswahl", skipped: "({0} nicht verwendbare übersprungen)",
     copied: "Kopiert", selected: "Markiert: drücke Strg+C (oder Cmd+C)",
     scanning: "Scannen...", progress: "{0} von {1}", waitLink: "warte auf die Verbindung zum Gerät",
@@ -471,7 +471,14 @@ let LANG = (() => {
 function t(k, ...a) { const v = I18N[LANG][k] ?? I18N.nl[k] ?? k; return typeof v === "string" ? v.replace(/\{(\d)\}/g, (_, i) => a[+i]) : v; }
 function nm(o) { return LANG === "nl" || !o.N ? o.n : (o.N[LANG === "en" ? 0 : 1] || o.n); }      // object name
 function et(e) { return e[LANG_IDX[LANG]] || e[1]; }                                                   // enum text
-function nodeLabel(n) { return t("node")[n] || t("nodeN", n); }
+// Board label: the known role (controller, extension) or "node N", plus the name the
+// board reports when the scan found boards beyond the usual two.
+function nodeLabel(n) {
+  const nm = (device.nodes || []).find((x) => x[0] === n);
+  const role = t("node")[n];
+  if (role) return role;
+  return t("nodeN", n) + (nm && nm[1] ? " (" + nm[1] + ")" : "");
+}
 
 const NUMERIC = { U8: "u8", I8: "i8", U16: "u16", I16: "i16", U32: "u32", I32: "i32" };
 const UNITS = { "°C": "°C", "%": "%", bar: "bar", kW: "kW", W: "W", kWh: "kWh", V: "V", A: "A", Hz: "Hz", Rpm: "rpm", "l/m": "L/min", Hours: "h", Min: "min", Sec: "s", Days: "d" };
@@ -482,7 +489,7 @@ let sel = {};             // key -> "r" | "w"
 let names = load("names", {});  // key -> name the user gave in an imported YAML
 let extras = load("extras", []); // [node, idx, sub] in use but not in the menu description
 let lastRecs = [];
-let device = { article: 0, name: "", unknown: 0 };
+let device = { article: 0, name: "", unknown: 0, nodes: [] };
 const expanded = new Set();
 
 const $ = (id) => document.getElementById(id);
@@ -589,8 +596,10 @@ function showDeviceStatus() {
   const dev = device;
   const known = DATA.known[String(dev.article)];
   const who = dev.article ? (known ? known + " (" + dev.article + ")" : t("article", dev.article)) : t("appliance");
+  const boards = (dev.nodes || []).map((x) => x[0] + (x[1] ? " " + x[1] : "")).join(", ");
   $("status").innerHTML = "<b>" + esc(who) + "</b>" + (dev.name ? " · " + t("internal", esc(dev.name)) : "") +
-    " · " + t("objects", groups.length) + (dev.unknown ? " " + t("skipped", dev.unknown) : "");
+    " · " + t("objects", groups.length) + (dev.unknown ? " " + t("skipped", dev.unknown) : "") +
+    (boards ? "<br>" + esc(t("boards", boards)) : "");
 }
 
 // ---- table ----
@@ -908,7 +917,7 @@ $("btn-dl").addEventListener("click", () => {
 // ---- configurator on the ESP itself (/remeha) ----
 let pollTimer = null;
 async function applyDeviceResult(j) {
-  setRecords(j.recs || [], { article: j.article || 0, name: j.name || "" });
+  setRecords(j.recs || [], { article: j.article || 0, name: j.name || "", nodes: j.nodes || [] });
   const saved = load("sel", null) || {};
   const valid = new Set(rows.map((r) => r.key));
   sel = {};
@@ -1066,7 +1075,7 @@ async function pollScan(first) {
         return;
       }
       fetch("/remeha/data.json?gen=" + scan.gen + "&from=" + scan.from, { cache: "no-store" }).catch(() => {});
-      const res = { recs: scan.recs, article: j.article || 0, name: j.name || "" };
+      const res = { recs: scan.recs, article: j.article || 0, name: j.name || "", nodes: j.nodes || [] };
       store("devscan", res);
       applyDeviceResult(res);
       return;

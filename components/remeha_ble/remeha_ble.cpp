@@ -1017,7 +1017,10 @@ void RemehaBle::decode_and_publish_(RemehaItem &it, uint8_t flag, const uint8_t 
   bool na = (raw == -32768 && is_signed) ||
             (raw == 0xFFFF && !is_signed && (flag == 0x02 || it.type == VT_U16)) ||
             (it.type == VT_I32 && flag != 0x02 && raw == -2147483648LL) ||
-            (it.type == VT_U32 && flag != 0x02 && raw == 0xFFFFFFFFLL);
+            (it.type == VT_U32 && flag != 0x02 && raw == 0xFFFFFFFFLL) ||
+            // a U8 measurement of 0xFF (e.g. water pressure 25.5 bar on an Elga Ace
+            // without that sensor) means "no value"; settings and choices keep 255
+            (it.type == VT_U8 && raw == 0xFF && it.sensor != nullptr && it.number == nullptr);
   if (!ok || na) return;
   // On/off entities: decided on the RAW value, before any bool/gain mapping.
   if (it.binary_sensor != nullptr || it.switch_ != nullptr) {
@@ -1051,10 +1054,9 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
     if (key == probe_expect_) probe_done_(op == 0x01, &m[11], end - 11, nullptr);
   }
-  if ((op == 0x01 || op == 0x02) && scan_left_ > 0 && end >= 11) {
-    uint16_t sidx = (uint16_t) (m[8] << 8) | m[9];
-    if (sidx == 0x502B || (m[7] == 1 && ((sidx == 0x2000 && m[10] == 9) || (sidx == 0x3047 && m[10] == 0))))
-      handle_scan_response_(m[7], sidx, m[10], &m[11], end - 11, op == 0x01);
+  if ((op == 0x01 || op == 0x02) && scan_left_ > 0 && scan_inflight_ && end >= 11) {
+    // handle_scan_response_ only takes the read it is waiting for
+    handle_scan_response_(m[7], (uint16_t) (m[8] << 8) | m[9], m[10], &m[11], end - 11, op == 0x01);
   }
   if ((op == 0x01 || op == 0x02) && id_left_ > 0 && end >= 11 && m[7] == 1 &&
       ((m[8] == 0x20 && m[9] == 0x00 && m[10] == 9) || (m[8] == 0x30 && m[9] == 0x47 && m[10] == 0))) {
@@ -1413,14 +1415,23 @@ void RemehaBle::probe_done_(bool ok, const uint8_t *d, size_t len, const char *e
 }
 
 // ---- configurator scan (for the page on the ESP, see configurator_web.cpp) ----
-// Reads: 0x2000:09 + 0x3047 (identification) and 0x502B:1..20 on node 1 (EHC
-// regelaar) and node 4 (SCB uitbreiding). One read at a time; every menu block is
-// turned into a JSON chunk for the page. At most SCAN_MAX_CHUNKS chunks wait for
-// the page; beyond that the scan pauses until the page has fetched them.
-static const uint8_t SCAN_NODES[] = {1, 4};
+// 1. Find the boards: read 0x3047 (name) on node 1..SCAN_NODE_MAX. A node that
+//    answers, with a value or with a "does not exist"-type abort (0x06......),
+//    is there; "general error" (0x08000000) or no answer means no board.
+// 2. 0x2000:09 (article number) on the main board (node 1 if present).
+// 3. 0x502B:1..15 on every board found (1-5 settings, 6-10 measurements, 11-15
+//    counters, per access level 1-5). "General error" is retried twice.
+// One read at a time; every menu block becomes a JSON chunk for the page. At most
+// SCAN_MAX_CHUNKS chunks wait for the page; beyond that the scan pauses.
+static const uint8_t SCAN_NODE_MAX = 16;
+static const uint8_t SCAN_MENU_SUBS = 15;
+static const uint8_t SCAN_FALLBACK_NODES[] = {1, 4};
 static const size_t SCAN_MAX_CHUNKS = 3;
 static const uint32_t SCAN_PAUSE_TIMEOUT_MS = 60000;
 static const uint32_t SCAN_READ_TIMEOUT_MS = 20000;
+static const uint32_t SCAN_PROBE_TIMEOUT_MS = 2500;   // node search: an absent node may not answer
+static const uint32_t SCAN_RETRY_DELAY_MS = 500;
+static const uint32_t ABORT_GENERAL = 0x08000000UL;
 static const size_t SCAN_MIN_FREE_BLOCK = 8192;  // keep this much contiguous heap free for BLE/wifi
 
 void RemehaBle::request_scan() {
@@ -1486,7 +1497,8 @@ void RemehaBle::loop() {
   }
   // start once the link runs and the boot-time identification/menu reads are done
   if (scan_pending_ && st_ == ST_RUN && menu_left_ == 0 && id_left_ == 0 && !scan_inflight_) start_scan_();
-  if (scan_state_ == 2 && scan_inflight_ && millis() - scan_issue_ms_ > SCAN_READ_TIMEOUT_MS) {
+  if (scan_state_ == 2 && scan_inflight_ &&
+      millis() - scan_issue_ms_ > (((scan_expect_ >> 8) & 0xFFFF) == 0x3047 ? SCAN_PROBE_TIMEOUT_MS : SCAN_READ_TIMEOUT_MS)) {
     ESP_LOGW(TAG, "configurator: geen antwoord op 0x%04X:%u (node %u), overgeslagen",
              (unsigned) ((scan_expect_ >> 8) & 0xFFFF), (unsigned) (scan_expect_ & 0xFF), (unsigned) (scan_expect_ >> 24));
     handle_scan_response_(scan_expect_ >> 24, (scan_expect_ >> 8) & 0xFFFF, scan_expect_ & 0xFF, nullptr, 0, false);
@@ -1502,9 +1514,14 @@ void RemehaBle::scan_reset_() {
   scan_restart_ = false;
   scan_article_ = 0;
   scan_name_.clear();
-  scan_total_ = 2 + 20 * sizeof(SCAN_NODES);
+  scan_nodes_.clear();
+  scan_steps_.clear();
+  for (uint8_t n = 1; n <= SCAN_NODE_MAX; n++) scan_steps_.push_back({n, 0x3047, 0, 0});
+  scan_pos_ = 0;
+  scan_retry_at_ = 0;
+  // estimate until the boards are known: search + article + two boards
+  scan_total_ = SCAN_NODE_MAX + 1 + 2 * SCAN_MENU_SUBS;
   scan_left_ = scan_total_;
-  scan_issued_ = 0;
   scan_seq_ = 0;
   scan_state_ = 2;
   {
@@ -1527,7 +1544,9 @@ void RemehaBle::start_scan_() {
 }
 
 void RemehaBle::scan_issue_next_() {
-  if (scan_state_ != 2 || scan_inflight_ || scan_issued_ >= scan_total_) return;
+  if (scan_state_ != 2 || scan_inflight_ || scan_pos_ >= scan_steps_.size()) return;
+  if (scan_retry_at_ != 0 && (int32_t) (millis() - scan_retry_at_) < 0) return;  // waiting to retry
+  scan_retry_at_ = 0;
   {
     std::lock_guard<std::mutex> lock(scan_mtx_);
     if (scan_chunks_.size() >= SCAN_MAX_CHUNKS) return;  // wait for the page
@@ -1536,11 +1555,9 @@ void RemehaBle::scan_issue_next_() {
     scan_abort_("te weinig vrij geheugen op de ESP");
     return;
   }
-  uint16_t i = scan_issued_++;
-  uint8_t node = 1, sub = 9;
-  uint16_t index = 0x2000;
-  if (i == 1) { index = 0x3047; sub = 0; }
-  else if (i >= 2) { node = SCAN_NODES[(i - 2) / 20]; index = 0x502B; sub = (uint8_t) ((i - 2) % 20 + 1); }
+  const ScanStep &st = scan_steps_[scan_pos_];
+  uint8_t node = st.node, sub = st.sub;
+  uint16_t index = st.index;
   menu_q_.push_back(build_read_frame_(node, index, sub));
   scan_expect_ = ((uint32_t) node << 24) | ((uint32_t) index << 8) | sub;
   scan_issue_ms_ = millis();
@@ -1572,11 +1589,44 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
     scan_issue_next_();
     return;
   }
-  if (ok && index == 0x2000 && len >= 4) scan_article_ = le32(d);
-  if (ok && index == 0x3047) {
-    for (size_t i = 0; i < len && d[i] && scan_name_.size() < 32; i++)
-      if (isalnum(d[i]) || d[i] == '-' || d[i] == ' ') scan_name_.push_back((char) d[i]);
+  uint32_t abort = (!ok && d != nullptr && len >= 4) ? le32(d) : 0;
+  // "general error": the CAN bus or the board was busy; try the same read again
+  if (!ok && abort == ABORT_GENERAL && scan_pos_ < scan_steps_.size() &&
+      scan_steps_[scan_pos_].tries < (index == 0x3047 ? 1 : 2)) {
+    scan_steps_[scan_pos_].tries++;
+    scan_retry_at_ = millis() + SCAN_RETRY_DELAY_MS;
+    if (scan_retry_at_ == 0) scan_retry_at_ = 1;
+    return;  // the loop issues it again after the delay
   }
+  scan_pos_++;
+  if (index == 0x3047) {
+    // board search: present when it answers with a value or with a 0x06.. abort
+    if (ok || (abort >> 24) == 0x06) {
+      std::string nm;
+      for (size_t i = 0; ok && i < len && d[i] && nm.size() < 24; i++)
+        if (isalnum(d[i]) || d[i] == '-' || d[i] == ' ' || d[i] == '_') nm.push_back((char) d[i]);
+      scan_nodes_.emplace_back(node, nm);
+      ESP_LOGI(TAG, "configurator: bord op node %u%s%s", node, nm.empty() ? "" : ": ", nm.c_str());
+    }
+    if (node == SCAN_NODE_MAX) {
+      // search done: plan article number + menu blocks of every board found
+      std::vector<uint8_t> nodes;
+      for (auto &n : scan_nodes_) nodes.push_back(n.first);
+      if (nodes.empty()) {
+        ESP_LOGW(TAG, "configurator: geen borden gevonden, probeer node 1 en 4");
+        nodes.assign(SCAN_FALLBACK_NODES, SCAN_FALLBACK_NODES + sizeof(SCAN_FALLBACK_NODES));
+      }
+      uint8_t main = nodes[0];
+      for (auto &n : scan_nodes_) if (n.first == 1) main = 1;
+      for (auto &n : scan_nodes_) if (n.first == main) scan_name_ = n.second;
+      scan_steps_.push_back({main, 0x2000, 9, 0});
+      for (uint8_t n : nodes)
+        for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n, 0x502B, b, 0});
+      scan_total_ = scan_steps_.size();
+      scan_left_ = scan_total_ - scan_pos_ + 1;  // +1: decremented below for this step
+    }
+  }
+  if (ok && index == 0x2000 && len >= 4) scan_article_ = le32(d);
   if (ok && index == 0x502B && len >= 4) {
     parse_menu_block_(node, d, len);  // also apply the limits to numbers/selects
     size_t count = d[0] | (d[1] << 8);
@@ -1629,8 +1679,16 @@ void RemehaBle::update_scan_json_() {
            "{\"state\":\"%s\",\"gen\":%u,\"progress\":%u,\"total\":%u,\"route\":\"%s\",\"article\":%lu,\"name\":\"%s\"",
            STATES[scan_state_ & 3], (unsigned) scan_gen_.load(), (unsigned) (scan_total_ - scan_left_), (unsigned) scan_total_,
            requires_pairing_ ? "gtw22" : "gtwiot", (unsigned long) scan_article_, scan_name_.c_str());
+  std::string h = buf;
+  h += ",\"nodes\":[";
+  for (size_t k = 0; k < scan_nodes_.size(); k++) {
+    char nb[48];
+    snprintf(nb, sizeof(nb), "%s[%u,\"%s\"]", k ? "," : "", (unsigned) scan_nodes_[k].first, scan_nodes_[k].second.c_str());
+    h += nb;
+  }
+  h += ']';
   std::lock_guard<std::mutex> lock(scan_mtx_);
-  scan_head_ = buf;
+  scan_head_.swap(h);
 }
 
 // ---- discovery dump (verkenning) ----

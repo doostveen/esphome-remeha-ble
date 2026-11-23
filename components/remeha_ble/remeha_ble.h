@@ -198,7 +198,12 @@ class RemehaBle : public PollingComponent,
   uint32_t scan_expect_{0};    // node<<24 | index<<8 | sub of the read in flight
   uint32_t scan_issue_ms_{0};
   uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done, 4 error
-  uint16_t scan_left_{0}, scan_total_{0}, scan_issued_{0}, scan_seq_{0};
+  uint16_t scan_left_{0}, scan_total_{0}, scan_seq_{0};
+  struct ScanStep { uint8_t node; uint16_t index; uint8_t sub; uint8_t tries; };
+  std::vector<ScanStep> scan_steps_;  // reads of this scan, in order (grows after the board search)
+  size_t scan_pos_{0};                // next step to issue
+  uint32_t scan_retry_at_{0};         // millis() of the next retry, 0 = none
+  std::vector<std::pair<uint8_t, std::string>> scan_nodes_;  // boards found: node, name
   std::atomic<uint16_t> scan_gen_{0};  // bumped on every (re)start, so the page knows to start over
   uint32_t scan_article_{0};
   std::string scan_name_;
