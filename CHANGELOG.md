@@ -10,13 +10,17 @@
   the menu description of every board that answers, instead of only node 1 and 4. The
   status line lists the boards found. Menu blocks are read 1 to 15 (16 to 20 do not
   exist), and a block that returns "general error" (0x08000000) is retried twice.
+  Refusals that the scan expects (absent boards, level-5 blocks) are logged quietly;
+  the log lists the boards found.
 - **Fix:** a U8 measurement of 0xFF (such as a water pressure of 25.5 bar on an
   appliance without that sensor) is now "no value" instead of a number.
 - **Fix:** the scan read past the end of the menu description (0x502B) and showed the
   data there as objects with nonsense ranges and levels (seen on an Elga Ace; a few on
-  a Confida 40). The list now ends at the first record that cannot be real, in the scan
-  and when taking over limits for numbers and selects. Older scans in the browser are
-  filtered too; scanning again is better.
+  a Confida 40). A record that cannot be real is now skipped; index 0 or three bad
+  records in a row end the list. This holds for the scan and for the limits of numbers
+  and selects. Older scans in the browser are filtered too; scanning again is better.
+  The log shows per block how many records the appliance reports, the block size and
+  the first record that was skipped, so a different layout can be recognised.
 - **Fix:** an answer with a lost Bluetooth fragment was glued to the next answer,
   which then failed its CRC check as well. A gap in the fragment count now drops just
   that answer (logged as a warning), and a reassembled message is capped at 2 kB.

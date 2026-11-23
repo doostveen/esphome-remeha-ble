@@ -118,6 +118,7 @@ static const char *auth_fail_str(uint8_t r) {
 // (op 0x02 = read failed, op 0x06 = write failed; 4 bytes little-endian).
 static const char *sdo_abort_str(uint32_t c) {
   switch (c) {
+    case 0x05040000: return "geen antwoord (time-out)";
     case 0x05040001: return "ongeldig commando";
     case 0x06010000: return "geen toegang tot object";
     case 0x06010001: return "object is alleen-schrijven";
@@ -1101,8 +1102,17 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     uint16_t index = (uint16_t)(m[8] << 8) | m[9];
     uint32_t code = (end >= 15) ? le32(&m[11]) : 0;
     const char *what = (op == 0x06) ? "WRITE GEWEIGERD" : "READ MISLUKT";
-    ESP_LOGW(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
-             (unsigned long) code, sdo_abort_str(code));
+    // the configurator scan expects refusals (absent boards, level-5 blocks):
+    // its own reads are logged quietly, the scan reports a summary
+    bool scan_read = op == 0x02 && scan_inflight_ &&
+                     scan_expect_ == (((uint32_t) m[7] << 24) | ((uint32_t) index << 8) | m[10]);
+    if (scan_read) {
+      ESP_LOGD(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
+               (unsigned long) code, sdo_abort_str(code));
+    } else {
+      ESP_LOGW(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
+               (unsigned long) code, sdo_abort_str(code));
+    }
     // Object or subindex does not exist on this appliance: stop polling it, so
     // a value from the codebook that this model lacks does not cost a read every
     // cycle (and does not show a bogus value).
@@ -1223,12 +1233,28 @@ bool RemehaBle::menu_record_(const uint8_t *r, MenuRec &out) {
   return true;
 }
 
+// Bytes per record of a 0x502B block: 15 on the appliances seen so far. When the
+// block length does not fit 15-byte records but does fit `count` equal records
+// of another size, use that size (the first 15 bytes keep the same layout).
+size_t RemehaBle::menu_stride_(const uint8_t *d, size_t len) {
+  if (len < 4) return 15;
+  size_t count = d[0] | (d[1] << 8), avail = len - 4;
+  if (count == 0 || avail % 15 == 0) return 15;
+  if (avail % count == 0 && avail / count > 15 && avail / count <= 32) return avail / count;
+  return 15;
+}
+
 void RemehaBle::parse_menu_block_(uint8_t node, const uint8_t *d, size_t len) {
   if (len < 4) return;
-  size_t count = d[0] | (d[1] << 8);
-  for (size_t k = 0; k < count && 4 + 15 * (k + 1) <= len; k++) {
+  size_t count = d[0] | (d[1] << 8), rs = menu_stride_(d, len);
+  size_t bad = 0;
+  for (size_t k = 0; k < count && 4 + rs * (k + 1) <= len; k++) {
     MenuRec rec;
-    if (!menu_record_(d + 4 + 15 * k, rec)) break;  // end of the real list
+    if (!menu_record_(d + 4 + rs * k, rec)) {  // see handle_scan_response_: same rule
+      if (rec.index == 0 || ++bad >= 3) break;
+      continue;
+    }
+    bad = 0;
     uint16_t index = rec.index;
     uint8_t sub = rec.sub, step = rec.step;
     int32_t mn = rec.min, mx = rec.raw_max;
@@ -1610,6 +1636,14 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
     }
     if (node == SCAN_NODE_MAX) {
       // search done: plan article number + menu blocks of every board found
+      std::string list;
+      for (auto &n : scan_nodes_) {
+        char b[40];
+        snprintf(b, sizeof(b), "%s%u%s%s", list.empty() ? "" : ", ", (unsigned) n.first, n.second.empty() ? "" : " ",
+                 n.second.c_str());
+        list += b;
+      }
+      ESP_LOGI(TAG, "configurator: printen gevonden: %s", list.empty() ? "geen" : list.c_str());
       std::vector<uint8_t> nodes;
       for (auto &n : scan_nodes_) nodes.push_back(n.first);
       if (nodes.empty()) {
@@ -1630,7 +1664,11 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
   if (ok && index == 0x502B && len >= 4) {
     parse_menu_block_(node, d, len);  // also apply the limits to numbers/selects
     size_t count = d[0] | (d[1] << 8);
-    size_t fit = len >= 4 ? (len - 4) / 15 : 0;
+    size_t rs = menu_stride_(d, len);
+    size_t fit = len >= 4 ? (len - 4) / rs : 0;
+    // diagnostics: block size and record size, so a different layout shows up in the log
+    ESP_LOGI(TAG, "configurator: 0x502B:%u node %u: %u records opgegeven, %u bytes, record %u bytes%s", sub, node,
+             (unsigned) count, (unsigned) len, (unsigned) rs, (len - 4) % rs ? " (rest past niet)" : "");
     if (count > fit) count = fit;
     if (count > 0) {
       if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < SCAN_MIN_FREE_BLOCK + count * 48) {
@@ -1640,14 +1678,25 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
       std::string c;
       c.reserve(count * 40);
       char buf[96];
-      size_t kept = 0;
+      size_t kept = 0, bad = 0, skipped = 0;
       for (size_t k = 0; k < count; k++) {
-        const uint8_t *r = d + 4 + 15 * k;
+        const uint8_t *r = d + 4 + rs * k;
         MenuRec rec;
-        if (!menu_record_(r, rec)) {  // the rest of this block is not part of the list
-          ESP_LOGD(TAG, "configurator: 0x502B:%u node %u, records vanaf %u genegeerd", sub, node, (unsigned) k);
-          break;
+        // A record that cannot be real is skipped. Index 0 ends the list (seen
+        // after the last record on a Confida 40); three bad ones in a row mean
+        // the rest is not records either.
+        if (!menu_record_(r, rec)) {
+          if (skipped == 0)
+            ESP_LOGI(TAG, "configurator: 0x502B:%u node %u: record %u van %u niet geldig: %s", sub, node, (unsigned) k,
+                     (unsigned) count, tohex(r, rs).c_str());
+          skipped++;
+          if (rec.index == 0 || ++bad >= 3) {
+            ESP_LOGI(TAG, "configurator: 0x502B:%u node %u: einde van de lijst na record %u", sub, node, (unsigned) k);
+            break;
+          }
+          continue;
         }
+        bad = 0;
         // raw min/max as the appliance sends them; the page applies the same fixes
         snprintf(buf, sizeof(buf), "%s[%u,%u,%u,%ld,%ld,%u,%u]", kept ? "," : "", (unsigned) node,
                  (unsigned) rec.index, (unsigned) rec.sub, (long) rec.raw_min, (long) rec.raw_max,

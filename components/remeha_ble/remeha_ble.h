@@ -190,6 +190,7 @@ class RemehaBle : public PollingComponent,
     double max{0};
   };
   static bool menu_record_(const uint8_t *r, MenuRec &out);
+  static size_t menu_stride_(const uint8_t *d, size_t len);
   // configurator scan state (see request_scan)
   std::atomic<bool> scan_req_{false};
   bool scan_pending_{false};
