@@ -70,6 +70,9 @@ The page at `http://<esp-ip>/remeha` is served by the ESP itself.
   that can be written.
 - **Quick select** buttons tick a group at once: Basic, Energy, Outdoor unit, Room,
   Heating curve. They were made on a heat pump and only tick what your appliance has.
+  **Read all** and **All adjustable** tick everything the search and filters show at that
+  moment, so filter on a group or kind first. Be careful with hundreds of entities at
+  once: each one costs memory and read time on the ESP.
 - Objects with several elements (per zone, per activity, per producer) are shown on one
   row with a **+** to show the elements (see *Rows with a +* below).
 - The button in the **Value** column reads the current value of that object once, so

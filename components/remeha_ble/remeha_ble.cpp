@@ -1126,6 +1126,11 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     uint32_t key = ((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10];
     if (key == probe_expect_) probe_done_(op == 0x01, &m[11], end - 11, nullptr);
   }
+  // Decide now whether this is the scan's own read: handle_scan_response_ moves
+  // on to the next read, after which the check below could never match (every
+  // expected refusal of the board search was then logged as a warning).
+  const bool scan_own = scan_inflight_ && end >= 11 &&
+                        scan_expect_ == (((uint32_t) m[7] << 24) | ((uint32_t) ((m[8] << 8) | m[9]) << 8) | m[10]);
   if ((op == 0x01 || op == 0x02) && scan_left_ > 0 && scan_inflight_ && end >= 11) {
     // handle_scan_response_ only takes the read it is waiting for
     handle_scan_response_(m[7], (uint16_t) (m[8] << 8) | m[9], m[10], &m[11], end - 11, op == 0x01);
@@ -1184,9 +1189,7 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     const char *what = (op == 0x06) ? "WRITE GEWEIGERD" : "READ MISLUKT";
     // the configurator scan expects refusals (absent boards, level-5 blocks):
     // its own reads are logged quietly, the scan reports a summary
-    bool scan_read = scan_inflight_ &&
-                     scan_expect_ == (((uint32_t) m[7] << 24) | ((uint32_t) index << 8) | m[10]);
-    if (scan_read) {
+    if (scan_own) {
       ESP_LOGD(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
                (unsigned long) code, sdo_abort_str(code));
     } else {

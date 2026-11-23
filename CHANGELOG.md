@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.2.2 (2026-11-23)
+
+- **Fix:** the board search logged every absent node (no answer) as a warning. Those
+  refusals are expected; the check for "is this the scan's own read" ran after the scan
+  had already moved on to the next read, so it never matched. They are debug lines again.
+- **Names without '/'.** ESPHome reserves '/' in names and will refuse it from 2027.7.0
+  (43 codebook names contain one). Names filled in from the codebook and names in the
+  configurator's YAML now use the same replacement as ESPHome (U+2044 fraction slash),
+  so existing names and entity IDs stay the same. A `name:` you wrote yourself is not
+  changed by the component.
+- **Read all / All adjustable** buttons next to Quick select: they tick everything the
+  search and filters show at that moment (thanks andrePKI).
+- The status line shows a board without a name by its role, such as "4 (extension)".
+
 ## v2.2.1 (2026-11-23)
 
 - **Fix:** a received message was capped at 2 kB since v2.2.0, but a menu block can be

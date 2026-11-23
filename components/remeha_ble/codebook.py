@@ -109,7 +109,9 @@ def apply_code(platform):
             if key not in c and value is not None:
                 c[key] = value
 
-        default("name", f"{e['n']} ({code})")
+        # ESPHome reserves '/' in names (an error from 2027.7.0) and replaces it
+        # with U+2044 FRACTION SLASH; same here, so names and entity IDs stay put
+        default("name", f"{e['n']} ({code})".replace("/", "\u2044"))
         default("index", e["i"])
         default("subindex", 1 if e["a"] else e["s"])
         default("read", "auto")

@@ -71,6 +71,9 @@ De pagina op `http://<ip-van-de-esp>/remeha` komt van de ESP zelf.
   instellingen die schrijfbaar zijn.
 - Met **Snel aanvinken** kies je een hele groep: Basis, Energie, Buitenunit, Ruimte,
   Stooklijn. Ze zijn gemaakt op een warmtepomp en vinken alleen aan wat jouw toestel heeft.
+  **Alles lezen** en **Alles instelbaar** vinken alles aan wat zoeken en filters op dat
+  moment tonen, dus filter eerst op een groep of soort. Pas op met honderden entiteiten
+  tegelijk: elke entiteit kost geheugen en leestijd op de ESP.
 - Objecten met meerdere elementen (per groep, per activiteit, per producent) staan op
   één regel met een **+** om de elementen te tonen (zie *Regels met een +* hieronder).
 - Met de knop in de kolom **Waarde** lees je de huidige waarde van dat object één keer

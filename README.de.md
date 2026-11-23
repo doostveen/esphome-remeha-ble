@@ -74,7 +74,9 @@ Die Seite unter `http://<esp-ip>/remeha` kommt vom ESP selbst.
   nur bei schreibbaren Einstellungen.
 - Mit der **Schnellauswahl** wählst du eine ganze Gruppe: Basis, Energie, Außeneinheit,
   Raum, Heizkurve. Sie wurden an einer Wärmepumpe erstellt und kreuzen nur an, was dein
-  Gerät hat.
+  Gerät hat. **Alles lesen** und **Alles einstellbar** kreuzen alles an, was Suche und
+  Filter gerade zeigen; filtere also zuerst nach Gruppe oder Art. Vorsicht mit Hunderten
+  Entitäten auf einmal: jede kostet Speicher und Lesezeit auf dem ESP.
 - Objekte mit mehreren Elementen (pro Heizkreis, pro Aktivität, pro Erzeuger) stehen in
   einer Zeile mit einem **+**, um die Elemente anzuzeigen (siehe *Zeilen mit einem +* unten).
 - Mit der Schaltfläche in der Spalte **Wert** liest du den aktuellen Wert dieses Objekts

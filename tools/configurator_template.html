@@ -180,6 +180,8 @@ button.sm { padding: 2px 10px; font-size: .82rem; }
     <div class="row">
       <span class="note" data-i18n="quick"></span>
       <span id="presets" class="row"></span>
+      <button id="btn-all-r" type="button" class="chip" data-i18n="allRead"></button>
+      <button id="btn-all-w" type="button" class="chip" data-i18n="allWrite"></button>
       <button id="btn-clear" type="button" class="chip" data-i18n="clear"></button>
     </div>
     <div class="outside">
@@ -280,7 +282,7 @@ const I18N = {
     lDev: "Apparaatnaam (ESPHome)", lFriendly: "Naam in Home Assistant", lMac: "MAC (optioneel)", lRef: "Versie component",
     oMain: "main (stabiel)", oDev: "dev (nieuwste functies)", expected: "Waarschuwen als deze YAML op een ander type toestel draait",
     secretsNote: 'Wifi-gegevens en het stickernummer komen uit je eigen <span class="badge">secrets.yaml</span>.',
-    quick: "Snel aanvinken:", clear: "Alles wissen", lSearch: "Zoeken", phSearch: "code of naam, bv. HM001 of buitentemperatuur",
+    quick: "Snel aanvinken:", clear: "Alles wissen", allRead: "Alles lezen", allWrite: "Alles instelbaar", manyConfirm: "{0} objecten aanvinken? Honderden entiteiten tegelijk kosten geheugen en leestijd op de ESP.", lSearch: "Zoeken", phSearch: "code of naam, bv. HM001 of buitentemperatuur",
     lGroup: "Groep", lKind: "Soort", lShow: "Tonen", all: "alle", kS: "meetwaarden", kP: "instellingen", kC: "tellers",
     sAll: "alles", sSel: "alleen gekozen", sLvl1: "gebruikersniveau",
     legend: '<span class="badge">lezen</span> sensor in Home Assistant · <span class="badge warm">instelbaar</span> wijzigt een echte instelling van het toestel',
@@ -343,7 +345,7 @@ const I18N = {
     lDev: "Device name (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Component version",
     oMain: "main (stable)", oDev: "dev (newest features)", expected: "Warn when this YAML runs on a different type of appliance",
     secretsNote: 'Wi-Fi details and the sticker number come from your own <span class="badge">secrets.yaml</span>.',
-    quick: "Quick select:", clear: "Clear all", lSearch: "Search", phSearch: "code or name, e.g. HM001 or outside temperature",
+    quick: "Quick select:", clear: "Clear all", allRead: "Read all", allWrite: "All adjustable", manyConfirm: "Select {0} objects? Hundreds of entities at once cost memory and read time on the ESP.", lSearch: "Search", phSearch: "code or name, e.g. HM001 or outside temperature",
     lGroup: "Group", lKind: "Type", lShow: "Show", all: "all", kS: "measurements", kP: "settings", kC: "counters",
     sAll: "everything", sSel: "selected only", sLvl1: "user level",
     legend: '<span class="badge">read</span> sensor in Home Assistant · <span class="badge warm">adjustable</span> changes a real setting of the appliance',
@@ -406,7 +408,7 @@ const I18N = {
     lDev: "Gerätename (ESPHome)", lFriendly: "Name in Home Assistant", lMac: "MAC (optional)", lRef: "Version der Komponente",
     oMain: "main (stabil)", oDev: "dev (neueste Funktionen)", expected: "Warnen, wenn diese YAML auf einem anderen Gerätetyp läuft",
     secretsNote: 'WLAN-Daten und die Aufklebernummer kommen aus deiner eigenen <span class="badge">secrets.yaml</span>.',
-    quick: "Schnellauswahl:", clear: "Alles löschen", lSearch: "Suchen", phSearch: "Code oder Name, z. B. HM001 oder Außentemperatur",
+    quick: "Schnellauswahl:", clear: "Alles löschen", allRead: "Alles lesen", allWrite: "Alles einstellbar", manyConfirm: "{0} Objekte auswählen? Hunderte Entitäten auf einmal kosten Speicher und Lesezeit auf dem ESP.", lSearch: "Suchen", phSearch: "Code oder Name, z. B. HM001 oder Außentemperatur",
     lGroup: "Gruppe", lKind: "Art", lShow: "Anzeigen", all: "alle", kS: "Messwerte", kP: "Einstellungen", kC: "Zähler",
     sAll: "alles", sSel: "nur ausgewählte", sLvl1: "Benutzerebene",
     legend: '<span class="badge">lesen</span> Sensor in Home Assistant · <span class="badge warm">einstellbar</span> ändert eine echte Einstellung des Geräts',
@@ -596,7 +598,7 @@ function showDeviceStatus() {
   const dev = device;
   const known = DATA.known[String(dev.article)];
   const who = dev.article ? (known ? known + " (" + dev.article + ")" : t("article", dev.article)) : t("appliance");
-  const boards = (dev.nodes || []).map((x) => x[0] + (x[1] ? " " + x[1] : "")).join(", ");
+  const boards = (dev.nodes || []).map((x) => x[0] + (x[1] ? " " + x[1] : t("node")[x[0]] ? " (" + t("node")[x[0]] + ")" : "")).join(", ");
   $("status").innerHTML = "<b>" + esc(who) + "</b>" + (dev.name ? " · " + t("internal", esc(dev.name)) : "") +
     " · " + t("objects", groups.length) + (dev.unknown ? " " + t("skipped", dev.unknown) : "") +
     (boards ? "<br>" + esc(t("boards", boards)) : "");
@@ -705,19 +707,43 @@ function parentHtml(g) {
     '</td><td class="num">' + esc(ranges.size === 1 ? rangeText(r0) : "") + '</td><td></td><td class="num">' + esc(t("level")[r.level] || r.level) +
     '</td><td class="num">' + esc(nodeLabel(r0.node)) + "</td></tr>";
 }
+// Does a group pass the current search and filters? (render and the select-all buttons)
+function filterState() {
+  return { q: $("q").value.trim().toLowerCase(), gf: $("f-group").value, kind: $("f-kind").value, show: $("f-show").value };
+}
+function groupVisible(g, f) {
+  const r0 = g.rows[0], o = r0.o, q = f.q;
+  if (f.gf && ((o.c || "")[0] || "") !== f.gf) return false;
+  if (f.kind && o.k !== f.kind) return false;
+  if (f.show === "sel" && !g.rows.some((r) => sel[r.key])) return false;
+  if (f.show === "lvl1" && !g.rows.some((r) => r.level <= 1)) return false;
+  if (f.show === "extra" && !g.rows.some((r) => r.extra)) return false;
+  if (q && !((o.c || "").toLowerCase().includes(q) || nm(o).toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r0.idx).toLowerCase().includes(q))) return false;
+  return true;
+}
+// "Read all" / "All adjustable": select everything the filter shows now.
+function selectVisible(mode) {
+  const f = filterState(), todo = [];
+  for (const g of groups) {
+    if (!groupVisible(g, f)) continue;
+    for (const r of g.rows) {
+      if (f.show === "lvl1" && r.level > 1) continue;
+      if (mode === "w" ? writable(r.o) && sel[r.key] !== "w" : !sel[r.key]) todo.push(r);
+    }
+  }
+  if (!todo.length) { render(); return; }
+  if (todo.length > 100 && !confirm(t("manyConfirm", todo.length))) return;
+  for (const r of todo) sel[r.key] = mode === "w" ? "w" : "r";
+  store("sel", sel);
+  render();
+}
 function render() {
-  const q = $("q").value.trim().toLowerCase();
-  const gf = $("f-group").value, kind = $("f-kind").value, show = $("f-show").value;
+  const f = filterState(), show = f.show;
   const html = [];
   let shown = 0;
   for (const g of groups) {
-    const r0 = g.rows[0], o = r0.o;
-    if (gf && ((o.c || "")[0] || "") !== gf) continue;
-    if (kind && o.k !== kind) continue;
-    if (show === "sel" && !g.rows.some((r) => sel[r.key])) continue;
-    if (show === "lvl1" && !g.rows.some((r) => r.level <= 1)) continue;
-    if (show === "extra" && !g.rows.some((r) => r.extra)) continue;
-    if (q && !((o.c || "").toLowerCase().includes(q) || nm(o).toLowerCase().includes(q) || o.n.toLowerCase().includes(q) || hex4(r0.idx).toLowerCase().includes(q))) continue;
+    const r0 = g.rows[0];
+    if (!groupVisible(g, f)) continue;
     if (++shown > 800) break;
     if (g.rows.length === 1) { html.push(rowHtml(r0, false)); continue; }
     html.push(parentHtml(g));
@@ -748,6 +774,9 @@ function applyPreset(name) {
 }
 
 // ---- YAML ----
+// ESPHome reserves '/' in names (an error from 2027.7.0) and replaces it with
+// U+2044 FRACTION SLASH; doing the same here keeps names and entity IDs unchanged.
+function noSlash(s) { return String(s).replace(/\//g, "\u2044"); }
 function yq(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
 function decimals(g) { return g >= 1 ? 0 : Math.max(0, Math.min(4, Math.round(-Math.log10(g)))); }
 function enumOptions(o) {  // unique texts in the chosen language (select needs unique options)
@@ -785,7 +814,7 @@ function buildYaml() {
     const o = r.o, mode = sel[r.key], plat = platformFor(o, mode);
     const useCode = o.c && !o.d;
     const defSub = o.a ? 1 : 0;
-    let name = names[r.key] || defaultName(r, counts[r.key]);
+    let name = noSlash(names[r.key] || defaultName(r, counts[r.key]));
     const nk = plat + "|" + name;
     if (used[nk]) name += " " + (++used[nk]); else used[nk] = 1;
     const L = ["  - platform: remeha_ble"];
@@ -793,7 +822,7 @@ function buildYaml() {
     const texts = (plat === "select" || plat === "text_sensor") && o.e && o.e.length;
     if (useCode) {
       L.push("    code: " + o.c);
-      if (LANG !== "nl" || name !== o.n + " (" + o.c + ")") L.push("    name: " + yq(name));
+      if (LANG !== "nl" || name !== noSlash(o.n + " (" + o.c + ")")) L.push("    name: " + yq(name));
       if (r.node !== 1) L.push("    node: " + r.node);
       if (r.sub !== defSub) L.push("    subindex: " + r.sub);
       if (texts && LANG !== "nl") {
@@ -895,6 +924,8 @@ $("tbody").addEventListener("change", (e) => {
 });
 for (const id of ["q", "f-group", "f-kind", "f-show"]) $(id).addEventListener("input", render);
 for (const id of ["devname", "friendly", "mac", "ref", "expected"]) $(id).addEventListener("input", renderYaml);
+$("btn-all-r").addEventListener("click", () => selectVisible("r"));
+$("btn-all-w").addEventListener("click", () => selectVisible("w"));
 $("btn-clear").addEventListener("click", () => { sel = {}; names = {}; store("sel", sel); store("names", names); render(); });
 $("btn-copy").addEventListener("click", async () => {
   const txt = $("yaml").textContent;
