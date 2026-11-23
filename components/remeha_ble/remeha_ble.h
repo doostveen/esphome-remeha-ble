@@ -201,8 +201,9 @@ class RemehaBle : public PollingComponent,
   uint32_t scan_issue_ms_{0};
   uint8_t scan_state_{0};  // 0 idle, 1 waiting for the connection, 2 scanning, 3 done, 4 error
   uint16_t scan_left_{0}, scan_total_{0}, scan_seq_{0};
-  enum : uint8_t { SCAN_ARTICLE, SCAN_NAME, SCAN_MENU, SCAN_FIND };
+  enum : uint8_t { SCAN_ARTICLE, SCAN_NAME, SCAN_MENU, SCAN_FIND, SCAN_FMT, SCAN_SELECT };
   struct ScanStep { uint8_t node; uint16_t index; uint8_t sub; uint8_t tries; uint8_t kind; };
+  uint8_t scan_fmt_{2};               // menu format from 0x502C, written to 0x502D before the blocks
   uint8_t scan_fails_{0};             // menu blocks in a row that failed (skip the board at 3)
   std::vector<ScanStep> scan_steps_;  // reads of this scan, in order (grows after the board search)
   size_t scan_pos_{0};                // next step to issue
@@ -294,6 +295,8 @@ class RemehaBle : public PollingComponent,
   uint32_t auth0_ms_{0};
   void build_request_();
   std::vector<uint8_t> build_read_frame_(uint8_t node, uint16_t index, uint8_t sub);  // individual read (op 0x00)
+  std::vector<uint8_t> build_write_frame_(uint8_t node, uint16_t index, uint8_t sub, const std::vector<uint8_t> &data);
+  void push_menu_steps_(uint8_t node);  // scan: select the menu format, then 0x502B:1..15
   void queue_individual_reads_();         // (re)fill indiv_q_ with one read frame per single-read item
   bool send_next_individual_();           // pop+send one queued individual read; false if none
   void start_tx_(std::vector<uint8_t> frame);

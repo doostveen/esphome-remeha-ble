@@ -2,12 +2,14 @@
 
 ## Unreleased
 
-- **Fix: second authorization, as the Remeha PRO app does.** After the CAN-IP handshake
-  the component now also authorizes protocol 02.00 at level 5. Without it a Confida 40
-  refused the menu description (0x502B) with "general error" while normal reads kept
-  working: the scan then found nothing. It probably worked before only because an
-  earlier PRO-app session had left that authorization in place until the indoor unit
-  restarted. No answer or an unexpected one: the component continues without it.
+- **Fix: menu description on a Confida 40 after a restart.** Before reading the menu
+  description (0x502B) of a board, the PRO app reads 0x502C and writes that value
+  (`02`) to 0x502D. The component now does the same, in the scan and when it reads the
+  limits after connecting. Without it every block of every board returned "general
+  error" once the indoor unit had restarted, so the scan found nothing.
+- **Second authorization, as the Remeha PRO app does.** After the CAN-IP handshake
+  the component now also authorizes protocol 02.00 at level 5, as seen in the app's
+  traffic. No answer or an unexpected one: the component continues without it.
 - **Objects outside the menu** in the configurator. *+ From codebook* searches the
   codebook by code, index or name, reads an object once and adds it to the table.
   Codes from the Remeha app for array elements (such as `AC089`, `CP083`) are

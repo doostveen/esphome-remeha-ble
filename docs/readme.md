@@ -135,11 +135,9 @@ ESP -> 01 02 00 00 02 02 00 ff 05 <v0:4> <v1:4>      antwoord, niveau 5
 dev -> 01 02 00 00 02 03 00 ff 05 ff 01              geaccepteerd
 ```
 
-Zonder deze stap weigerde een Confida 40 de menubeschrijving (0x502B) met
-"algemene fout" (0x08000000), terwijl gewone reads bleven werken. Vermoedelijk liet een
-eerdere sessie van de PRO-app die autorisatie in de regelaar achter tot een herstart van
-de binnenunit. De component doet de stap sinds deze versie zelf; krijgt hij geen of een
-onverwacht antwoord, dan gaat hij zonder verder.
+De component doet deze stap sinds 2.2 zelf; krijgt hij geen of een onverwacht antwoord,
+dan gaat hij zonder verder. Voor het lezen van de menubeschrijving (0x502B) bleek deze
+stap alleen niet genoeg: zie 5.4.
 
 ---
 
@@ -253,6 +251,23 @@ Robuust parsen: plak de hele notify-blob aan elkaar en scan dit record-patroon.
 In één ronde haal je zo alle monitoring-waarden én de fouthistorie binnen.
 
 ---
+
+### 5.4 Menubeschrijving lezen (0x502C, 0x502D, 0x502B)
+
+Voordat de PRO-app de menubeschrijving van een bord leest, leest hij per bord 0x502C
+(antwoord `02`) en schrijft hij die waarde naar 0x502D. Pas daarna volgen 0x502B:1..16:
+
+```
+read  node 1 0x502C:0        -> 02
+write node 1 0x502D:0 = 02   -> ok (op 0x05)
+read  node 1 0x502B:1 .. 16  -> blokken
+```
+
+Zonder die keuze antwoordde een Confida 40 op elk blok van elk bord (node 1, 3, 4 en 5)
+met "algemene fout" (0x08000000), ook met de tweede autorisatie van 3.4. Vermoedelijk
+blijft de keuze staan tot de binnenunit herstart: de scan werkte wekenlang na een sessie
+met de PRO-app en stopte na een herstart. De component schrijft 0x502D nu zelf, bij het
+lezen van de grenzen na het verbinden (vast `02`) en in de scan (de waarde uit 0x502C).
 
 ## 6. Objecten decoderen
 

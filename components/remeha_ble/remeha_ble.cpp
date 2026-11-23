@@ -814,6 +814,18 @@ std::vector<uint8_t> RemehaBle::build_read_frame_(uint8_t node, uint16_t index, 
   return frame;
 }
 
+// Same for a write (op 0x04) with its value bytes.
+std::vector<uint8_t> RemehaBle::build_write_frame_(uint8_t node, uint16_t index, uint8_t sub,
+                                                    const std::vector<uint8_t> &data) {
+  std::vector<uint8_t> frame = {0x01, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, node,
+                                (uint8_t)(index >> 8), (uint8_t)(index & 0xFF), sub};
+  frame.insert(frame.end(), data.begin(), data.end());
+  uint16_t c = crc_modbus_(frame.data(), frame.size());
+  frame.push_back((uint8_t)(c >> 8));
+  frame.push_back((uint8_t)(c & 0xFF));
+  return frame;
+}
+
 // (Re)fill the individual-read queue: one request frame per single-read item.
 void RemehaBle::queue_individual_reads_() {
   indiv_q_.clear();
@@ -1143,6 +1155,15 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     return;
   }
 
+  if ((op == 0x05 || op == 0x06) && end >= 11 && m[8] == 0x50 && m[9] == 0x2D) {
+    // menu format selection (start_menu_read_ / scan): not a user write
+    uint32_t code = (op == 0x06 && end >= 15) ? le32(&m[11]) : 0;
+    if (op == 0x05) ESP_LOGI(TAG, "menuformaat gekozen op node %u (0x502D)", m[7]);
+    else ESP_LOGI(TAG, "menuformaat kiezen op node %u geweigerd: %s", m[7], sdo_abort_str(code));
+    if (scan_left_ > 0 && scan_inflight_)
+      handle_scan_response_(m[7], 0x502D, m[10], op == 0x06 ? &m[11] : nullptr, op == 0x06 ? end - 11 : 0, op == 0x05);
+    return;
+  }
   if (op == 0x05 && end >= 11) {  // write accepted (no payload)
     uint16_t index = (uint16_t)(m[8] << 8) | m[9];
     char msg[64];
@@ -1159,7 +1180,7 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
     const char *what = (op == 0x06) ? "WRITE GEWEIGERD" : "READ MISLUKT";
     // the configurator scan expects refusals (absent boards, level-5 blocks):
     // its own reads are logged quietly, the scan reports a summary
-    bool scan_read = op == 0x02 && scan_inflight_ &&
+    bool scan_read = scan_inflight_ &&
                      scan_expect_ == (((uint32_t) m[7] << 24) | ((uint32_t) index << 8) | m[10]);
     if (scan_read) {
       ESP_LOGD(TAG, "<< %s 0x%04X:%u (node %u): abort 0x%08lX = %s", what, index, m[10], m[7],
@@ -1236,9 +1257,15 @@ void RemehaBle::parse_response_(const std::vector<uint8_t> &m) {
 }
 
 // ---- menu descriptor 0x502B: device limits for numbers and selects ----
+// Before the blocks the PRO app reads 0x502C (answer 02) and writes that value
+// to 0x502D, per board. Without it a Confida 40 answered every block with
+// "general error" after the indoor unit had restarted; the selection then holds
+// until the next restart, which is why the scan worked for weeks before.
 // Each sub (1..20) is a block: u16 count (LE), 2 bytes (02 00), then count x 15
 // bytes: [0] flags [1] size [2..3] index LE [4..7] min i32 LE [8..11] max i32 LE
 // [12] subindex [13] step (raw) [14] user level. min = max = -1: no range.
+static const uint8_t MENU_FORMAT = 0x02;
+
 void RemehaBle::start_menu_read_() {
   menu_q_.clear(); menu_nodes_.clear(); menu_left_ = 0; id_left_ = 0;
   if (!id_done_) {  // which appliance is this? (once per boot)
@@ -1254,6 +1281,9 @@ void RemehaBle::start_menu_read_() {
   }
   if (menu_nodes_.empty()) { menu_done_ = true; return; }
   for (uint8_t n : menu_nodes_) {
+    // as the PRO app does: select menu format 2 (0x502D), otherwise a board can
+    // answer every block with "general error" (seen on a Confida 40 after a restart)
+    menu_q_.push_back(build_write_frame_(n, 0x502D, 0, {MENU_FORMAT}));
     for (uint8_t s = 1; s <= 20; s++) { menu_q_.push_back(build_read_frame_(n, 0x502B, s)); menu_left_++; }
   }
   ESP_LOGI(TAG, "menubeschrijving (0x502B) lezen voor de grenzen van instellingen (%u blokken)",
@@ -1499,6 +1529,8 @@ void RemehaBle::probe_done_(bool ok, const uint8_t *d, size_t len, const char *e
 // 1. 0x2000:09 (article number) and 0x3047 (name) on node 1, the controller.
 // 2. 0x502B:1..15 on node 1 and node 4 (1-5 settings, 6-10 measurements, 11-15
 //    counters, per access level 1-5), exactly as before the board search.
+//    Per board first 0x502C (menu format) and a write of that value to 0x502D,
+//    as the PRO app does; see start_menu_read_.
 // 3. Find other boards: 0x3047 on node 2..SCAN_NODE_MAX. A node that answers,
 //    with a value or with a 0x06...... abort, is there; "general error" or no
 //    answer means no board. Then 0x502B:1..15 of each extra board found.
@@ -1605,8 +1637,7 @@ void RemehaBle::scan_reset_() {
   scan_steps_.clear();
   scan_steps_.push_back({1, 0x2000, 9, 0, SCAN_ARTICLE});
   scan_steps_.push_back({1, 0x3047, 0, 0, SCAN_NAME});
-  for (uint8_t n : {1, 4})
-    for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n, 0x502B, b, 0, SCAN_MENU});
+  for (uint8_t n : {1, 4}) push_menu_steps_(n);
   for (uint8_t n = 2; n <= SCAN_NODE_MAX; n++) scan_steps_.push_back({n, 0x3047, 0, 0, SCAN_FIND});
   scan_pos_ = 0;
   scan_retry_at_ = 0;
@@ -1622,6 +1653,13 @@ void RemehaBle::scan_reset_() {
     scan_chunks_.shrink_to_fit();
   }
   update_scan_json_();
+}
+
+// Per board: 0x502C (menu format), write it to 0x502D as the PRO app does, then the blocks.
+void RemehaBle::push_menu_steps_(uint8_t node) {
+  scan_steps_.push_back({node, 0x502C, 0, 0, SCAN_FMT});
+  scan_steps_.push_back({node, 0x502D, 0, 0, SCAN_SELECT});
+  for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({node, 0x502B, b, 0, SCAN_MENU});
 }
 
 void RemehaBle::start_scan_() {
@@ -1649,7 +1687,8 @@ void RemehaBle::scan_issue_next_() {
   const ScanStep &st = scan_steps_[scan_pos_];
   uint8_t node = st.node, sub = st.sub;
   uint16_t index = st.index;
-  menu_q_.push_back(build_read_frame_(node, index, sub));
+  if (st.kind == SCAN_SELECT) menu_q_.push_back(build_write_frame_(node, index, sub, {scan_fmt_}));
+  else menu_q_.push_back(build_read_frame_(node, index, sub));
   scan_expect_ = ((uint32_t) node << 24) | ((uint32_t) index << 8) | sub;
   scan_issue_ms_ = millis();
   scan_inflight_ = true;
@@ -1691,6 +1730,22 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
     return;  // the loop issues it again after the delay
   }
   scan_pos_++;
+  if (kind == SCAN_FMT) {
+    if (ok && len >= 1 && d[0] != 0) {
+      scan_fmt_ = d[0];
+      ESP_LOGI(TAG, "configurator: node %u menuformaat (0x502C) = %u", node, (unsigned) scan_fmt_);
+    } else {
+      scan_fmt_ = MENU_FORMAT;
+      // object not there (older control): do not write 0x502D either
+      if (!ok && abort != ABORT_GENERAL && abort != 0 && scan_pos_ < scan_steps_.size() &&
+          scan_steps_[scan_pos_].kind == SCAN_SELECT && scan_steps_[scan_pos_].node == node) {
+        scan_pos_++;
+        if (scan_left_ > 1) scan_left_--;
+      }
+      ESP_LOGI(TAG, "configurator: node %u geen menuformaat (0x502C): %s", node,
+               ok ? "leeg" : sdo_abort_str(abort));
+    }
+  }
   if (kind == SCAN_MENU) {
     // a board whose menu blocks keep failing (general error / no answer): skip the rest of it
     bool failed = !ok && (abort == ABORT_GENERAL || abort == 0);
@@ -1728,8 +1783,8 @@ void RemehaBle::handle_scan_response_(uint8_t node, uint16_t index, uint8_t sub,
       size_t added = 0;
       for (auto &n : scan_nodes_) {
         if (n.first == 1 || n.first == 4) continue;  // already read
-        for (uint8_t b = 1; b <= SCAN_MENU_SUBS; b++) scan_steps_.push_back({n.first, 0x502B, b, 0, SCAN_MENU});
-        added += SCAN_MENU_SUBS;
+        push_menu_steps_(n.first);
+        added += SCAN_MENU_SUBS + 2;
       }
       scan_total_ += added;
       scan_left_ += added;
